@@ -5,13 +5,15 @@ import { StoreUser, UserRole, MasterUser, MasterRole } from '../types';
 export const login = async (identifier: string, password: string) => {
   const normalizedId = identifier.trim().toUpperCase();
   const MASTER_PWD = 'MASTERX95620083';
+  // UUID de emergência válido para evitar erro de sintaxe
+  const EMERGENCY_MASTER_ID = '00000000-0000-0000-0000-000000000000';
 
   // 1. Acesso MASTER de Emergência
   if (normalizedId === 'MASTER' && password === MASTER_PWD) {
     localStorage.setItem('omni_master_session', 'true');
     localStorage.setItem('omni_master_role', 'master_admin');
-    localStorage.setItem('omni_master_id', 'master-hq-id');
-    return { id: 'master-hq-id', name: 'Diretor Omni', role: 'master' };
+    localStorage.setItem('omni_master_id', EMERGENCY_MASTER_ID);
+    return { id: EMERGENCY_MASTER_ID, name: 'Diretor Omni', role: 'master' };
   }
 
   // 2. Verificação de Usuários HQ no Banco de Dados Remoto
@@ -34,7 +36,6 @@ export const login = async (identifier: string, password: string) => {
   }
 
   // 3. Login de Usuário de Unidade (Auth do Supabase)
-  // Nota: Para usuários de loja, o e-mail deve estar cadastrado no Supabase Auth
   const { data, error } = await supabase.auth.signInWithPassword({
     email: identifier.toLowerCase(),
     password,
@@ -65,13 +66,18 @@ export const logout = async () => {
   if (!isMaster()) {
     await supabase.auth.signOut();
   }
-  localStorage.clear(); // Limpa tudo para evitar sessões fantasmas
+  localStorage.clear();
   window.location.href = '#/login';
 };
 
 export const getSessionUser = async (): Promise<any> => {
   if (isMaster()) {
     const id = localStorage.getItem('omni_master_id');
+    // Se o ID for o de emergência, não precisamos consultar o banco
+    if (id === '00000000-0000-0000-0000-000000000000') {
+      return { name: 'Diretor Omni (Emergência)', role: 'master' };
+    }
+    
     try {
       const { data } = await supabase.from('master_users').select('*').eq('id', id).single();
       if (data) return { ...data, role: 'master' };
