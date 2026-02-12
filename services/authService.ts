@@ -1,15 +1,17 @@
 
 import { supabase } from './supabaseClient';
-import { Profile, StoreUser, User, UserRole } from '../types';
+import { Profile, StoreUser, User, UserRole, Store } from '../types';
 
 export const login = async (email: string, password: string) => {
-  // Novas credenciais MASTER solicitadas
-  if (email.toUpperCase() === 'MASTER@GMAIL.COM' && password === 'MASTERX95620083') {
+  const normalizedEmail = email.trim().toUpperCase();
+  
+  // Master Superuser Login Logic
+  if ((normalizedEmail === 'MASTER' || normalizedEmail === 'MASTER@GMAIL.COM') && password === 'MASTERX95620083') {
     const masterUser = {
       id: 'master-id',
-      email: 'master@gmail.com',
+      email: 'master@system',
       role: 'master' as UserRole,
-      name: 'Omni Master'
+      name: 'Omni Super Master'
     };
     localStorage.setItem('omni_master_session', 'true');
     localStorage.setItem('active_store_id', 'MASTER_CONTROLE');
@@ -29,15 +31,17 @@ export const isMaster = (): boolean => {
 };
 
 export const logout = async () => {
-  await supabase.auth.signOut();
+  if (!isMaster()) {
+    await supabase.auth.signOut();
+  }
   localStorage.removeItem('active_store_id');
   localStorage.removeItem('omni_master_session');
-  window.location.href = '/login';
+  window.location.href = '#/login';
 };
 
 export const getSessionUser = async (): Promise<any> => {
   if (isMaster()) {
-    return { id: 'master-id', email: 'master@gmail.com', role: 'master', name: 'Master' };
+    return { id: 'master-id', email: 'master@system', role: 'master', name: 'Master Admin' };
   }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -47,7 +51,21 @@ export const getSessionUser = async (): Promise<any> => {
 };
 
 export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
-  if (userId === 'master-id') return [];
+  if (userId === 'master-id') {
+    // Return a virtual store for the master so the store selector doesn't block them
+    return [{
+      id: 'virtual-master',
+      store_id: 'MASTER_CONTROLE',
+      user_id: 'master-id',
+      stores: {
+        id: 'MASTER_CONTROLE',
+        nome_fantasia: 'Painel Central Omni',
+        cnpj: '00.000.000/0000-00',
+        plano_ativo: 'SaaS Master',
+        created_at: new Date().toISOString()
+      }
+    }];
+  }
 
   const { data, error } = await supabase
     .from('store_users')
@@ -76,7 +94,6 @@ export const setActiveStoreId = (storeId: string) => {
   localStorage.setItem('active_store_id', storeId);
 };
 
-// Verifica se a loja atual tem acesso a um módulo específico
 export const hasModuleAccess = async (moduleId: string): Promise<boolean> => {
   if (isMaster()) return true;
   const storeId = getActiveStoreId();
