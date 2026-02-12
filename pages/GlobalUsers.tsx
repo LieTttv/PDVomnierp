@@ -12,6 +12,7 @@ import { impersonateStore } from '../services/authService';
 const GlobalUsers: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isDeploying, setIsDeploying] = useState(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [globalAdmins, setGlobalAdmins] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
@@ -73,8 +74,10 @@ const GlobalUsers: React.FC = () => {
       return;
     }
 
+    setIsDeploying(true);
+
     try {
-      // 1. Criar a Loja
+      // 1. Criar a Loja (O Banco gera o ID UUID automaticamente)
       const { data: store, error: storeErr } = await supabase.from('stores').insert([{
         nome_fantasia: deployForm.store_name,
         cnpj: deployForm.store_cnpj,
@@ -85,27 +88,41 @@ const GlobalUsers: React.FC = () => {
       
       if (storeErr) throw storeErr;
 
-      // 2. Criar o Perfil do Admin (Usando as colunas garantidas pelo SQL)
+      // 2. Criar o Perfil do Admin (O Banco gera o ID UUID automaticamente)
       const { data: profile, error: profileErr } = await supabase.from('profiles').insert([{
         name: deployForm.admin_name,
-        email: deployForm.admin_email.toLowerCase(),
+        email: deployForm.admin_email.toLowerCase().trim(),
         role: 'admin',
         password: deployForm.admin_password 
       }]).select().single();
 
-      if (profileErr) throw profileErr;
+      if (profileErr) {
+        // Se falhar o perfil, tentamos remover a loja para não deixar lixo (rollback manual simples)
+        await supabase.from('stores').delete().eq('id', store.id);
+        throw profileErr;
+      }
 
       // 3. Vincular Admin à Loja
-      await supabase.from('store_users').insert([{
+      const { error: linkErr } = await supabase.from('store_users').insert([{
         user_id: profile.id,
         store_id: store.id
       }]);
 
-      alert("Implantação Concluída! Unidade e Administrador sincronizados na nuvem.");
+      if (linkErr) throw linkErr;
+
+      alert("🚀 Implantação Concluída com Sucesso!");
       setIsDeployModalOpen(false);
+      // Limpar form
+      setDeployForm({
+        store_name: '', store_cnpj: '', store_plan: 'Premium', store_price: 499.00,
+        admin_name: '', admin_email: '', admin_password: ''
+      });
       fetchClients();
     } catch (err: any) {
-      alert("Erro na implantação: " + err.message);
+      console.error("Erro completo:", err);
+      alert("Falha na Implantação: " + (err.message || "Erro desconhecido no banco de dados. Verifique os logs do console."));
+    } finally {
+      setIsDeploying(false);
     }
   };
 
@@ -119,7 +136,7 @@ const GlobalUsers: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Painel de <span className="text-indigo-600">Clientes</span></h2>
-          <p className="text-slate-500 font-bold text-sm">Gestão de licenças e acessos administrativos.</p>
+          <p className="text-slate-500 font-bold text-sm">Gestão de licenças e acessos administrativos de unidades.</p>
         </div>
         <div className="flex gap-3">
           <button onClick={fetchClients} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
@@ -129,7 +146,7 @@ const GlobalUsers: React.FC = () => {
             onClick={() => setIsDeployModalOpen(true)}
             className="flex items-center gap-3 px-8 py-5 bg-slate-900 text-white rounded-[28px] font-black text-sm shadow-2xl hover:bg-indigo-600 transition-all uppercase tracking-widest"
           >
-            <Zap size={20} /> Implantar Unidade
+            <Zap size={20} /> Implantar Nova Licença
           </button>
         </div>
       </div>
@@ -208,6 +225,7 @@ const GlobalUsers: React.FC = () => {
                           const p = plans.find(pl => pl.name === e.target.value);
                           setDeployForm({...deployForm, store_plan: e.target.value, store_price: p?.price || 0});
                        }}>
+                          <option value="">Selecione um Plano...</option>
                           {plans.map(p => <option key={p.id} value={p.name}>Plano {p.name} - R$ {p.price}</option>)}
                        </select>
                        <div className="flex items-center gap-4 bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
@@ -232,7 +250,7 @@ const GlobalUsers: React.FC = () => {
                        </div>
                        <div className="relative">
                           <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                          <input type="password" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="SENHA" value={deployForm.admin_password} onChange={e => setDeployForm({...deployForm, admin_password: e.target.value})} />
+                          <input type="password" title="Senha de acesso do administrador" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="SENHA" value={deployForm.admin_password} onChange={e => setDeployForm({...deployForm, admin_password: e.target.value})} />
                        </div>
                     </div>
                  </div>
@@ -240,8 +258,16 @@ const GlobalUsers: React.FC = () => {
 
               <div className="p-10 border-t border-slate-100 flex items-center justify-end gap-6 bg-slate-50/50">
                  <button onClick={() => setIsDeployModalOpen(false)} className="text-xs font-black text-slate-400 uppercase">Cancelar</button>
-                 <button onClick={handleDeploy} className="px-12 py-5 bg-indigo-600 text-white rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:bg-slate-900 transition-all">
-                    Finalizar Implantação
+                 <button 
+                  onClick={handleDeploy} 
+                  disabled={isDeploying}
+                  className="px-12 py-5 bg-indigo-600 text-white rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:bg-slate-900 transition-all disabled:opacity-50 flex items-center gap-3"
+                 >
+                    {isDeploying ? (
+                      <><RefreshCw size={20} className="animate-spin" /> Implantando...</>
+                    ) : (
+                      "Finalizar Implantação"
+                    )}
                  </button>
               </div>
            </div>
