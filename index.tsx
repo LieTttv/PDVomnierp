@@ -1,4 +1,3 @@
-
 import React, { ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -26,10 +25,14 @@ interface ErrorBoundaryState {
 // Simple error fallback for early initialization errors
 // Fix: Added explicit generic types and state property declaration to resolve "Property does not exist" errors
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Fix: Explicitly declare props to satisfy the compiler and avoid "Property 'props' does not exist on type 'ErrorBoundary'" error
+  public props: ErrorBoundaryProps;
   public state: ErrorBoundaryState = { hasError: false, error: null };
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    // Fix: Explicitly assign props to ensure they are available on 'this'
+    this.props = props;
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
