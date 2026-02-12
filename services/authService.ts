@@ -35,7 +35,8 @@ export const login = async (identifier: string, password: string) => {
     }
   } catch (e) {}
 
-  // 3. Verificação de Usuários Admin/Unidade via Tabela Profiles (Login Global)
+  // 3. Verificação de Usuários Admin/Unidade via Tabela Profiles (Login Customizado)
+  // Este passo é crucial para os lojistas criados pelo painel Master
   try {
     const { data: profile } = await supabase
       .from('profiles')
@@ -45,19 +46,19 @@ export const login = async (identifier: string, password: string) => {
       .single();
 
     if (profile) {
-      // Retornamos o perfil para que o Login.tsx possa buscar as lojas vinculadas
+      // Importante: Guardamos o ID do profile para o getUserStores encontrar as lojas
       return profile;
     }
   } catch (e) {}
 
-  // 4. Fallback: Login Padrão Supabase Auth
+  // 4. Fallback: Login Padrão Supabase Auth (Para usuários que se cadastraram via convite oficial)
   const { data, error } = await supabase.auth.signInWithPassword({
     email: emailLower,
     password,
   });
   
   if (error) {
-    throw new Error("Credenciais inválidas. Verifique seu login e senha na nuvem.");
+    throw new Error("Credenciais inválidas. Verifique seu login e senha.");
   }
   
   return data.user;

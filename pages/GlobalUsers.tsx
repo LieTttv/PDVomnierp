@@ -77,7 +77,7 @@ const GlobalUsers: React.FC = () => {
     setIsDeploying(true);
 
     try {
-      // 1. Criar a Loja (O Banco gera o ID UUID automaticamente)
+      // 1. Criar a Loja
       const { data: store, error: storeErr } = await supabase.from('stores').insert([{
         nome_fantasia: deployForm.store_name,
         cnpj: deployForm.store_cnpj,
@@ -88,7 +88,8 @@ const GlobalUsers: React.FC = () => {
       
       if (storeErr) throw storeErr;
 
-      // 2. Criar o Perfil do Admin (O Banco gera o ID UUID automaticamente)
+      // 2. Criar o Perfil do Administrador
+      // IMPORTANTE: Não enviamos ID para o banco gerar o gen_random_uuid()
       const { data: profile, error: profileErr } = await supabase.from('profiles').insert([{
         name: deployForm.admin_name,
         email: deployForm.admin_email.toLowerCase().trim(),
@@ -97,7 +98,7 @@ const GlobalUsers: React.FC = () => {
       }]).select().single();
 
       if (profileErr) {
-        // Se falhar o perfil, tentamos remover a loja para não deixar lixo (rollback manual simples)
+        // Rollback manual da loja se o perfil falhar
         await supabase.from('stores').delete().eq('id', store.id);
         throw profileErr;
       }
@@ -110,17 +111,20 @@ const GlobalUsers: React.FC = () => {
 
       if (linkErr) throw linkErr;
 
-      alert("🚀 Implantação Concluída com Sucesso!");
+      alert("🚀 Implantação Master concluída com sucesso!");
       setIsDeployModalOpen(false);
-      // Limpar form
       setDeployForm({
         store_name: '', store_cnpj: '', store_plan: 'Premium', store_price: 499.00,
         admin_name: '', admin_email: '', admin_password: ''
       });
       fetchClients();
     } catch (err: any) {
-      console.error("Erro completo:", err);
-      alert("Falha na Implantação: " + (err.message || "Erro desconhecido no banco de dados. Verifique os logs do console."));
+      console.error("Erro na implantação:", err);
+      // Tratamento amigável para erro de constraint
+      const msg = err.message?.includes('profiles_id_fkey') 
+        ? "Erro de Schema: A tabela 'profiles' ainda está vinculada ao Auth do Supabase. Por favor, execute o script SQL de correção fornecido."
+        : err.message;
+      alert("Falha na Implantação: " + msg);
     } finally {
       setIsDeploying(false);
     }
