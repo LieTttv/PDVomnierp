@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, Mail, Lock, Package, ShieldCheck, User } from 'lucide-react';
+import { LogIn, Lock, Package, User, HelpCircle, X, MessageSquare } from 'lucide-react';
 import { login, getUserStores, setActiveStoreId, isMaster } from '../services/authService';
 
 const Login: React.FC = () => {
@@ -9,6 +9,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showForgotModal, setShowForgotModal] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -20,7 +21,6 @@ const Login: React.FC = () => {
       const user = await login(email, password);
       if (user) {
         if (isMaster()) {
-          // Master redirects straight to system root or master dashboard
           navigate('/master');
           return;
         }
@@ -64,7 +64,7 @@ const Login: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-8">
+        <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Identificação / E-mail</label>
             <div className="relative group">
@@ -81,7 +81,16 @@ const Login: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Chave de Acesso</label>
+            <div className="flex justify-between items-center ml-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave de Acesso</label>
+              <button 
+                type="button"
+                onClick={() => setShowForgotModal(true)}
+                className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline transition-all"
+              >
+                Esqueceu a senha?
+              </button>
+            </div>
             <div className="relative group">
               <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors" size={20} />
               <input 
@@ -97,7 +106,7 @@ const Login: React.FC = () => {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black text-sm uppercase tracking-[0.2em] shadow-2xl hover:bg-blue-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+            className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black text-sm uppercase tracking-[0.2em] shadow-2xl hover:bg-blue-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 mt-4"
           >
             {loading ? <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin"></div> : (
               <>
@@ -111,6 +120,32 @@ const Login: React.FC = () => {
            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">© 2024 OmniERP Global Solutions</p>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-10 text-center animate-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <HelpCircle size={40} />
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 mb-4 tracking-tight">Recuperar Acesso</h3>
+            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-8">
+              <p className="text-sm font-bold text-slate-600 leading-relaxed">
+                Para redefinir sua chave de acesso ou recuperar seu login, por favor:
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-2 text-blue-600 font-black uppercase text-xs tracking-widest">
+                <MessageSquare size={16} /> Entre em contato com o MANAGER
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowForgotModal(false)}
+              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+            >
+              Entendido <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
