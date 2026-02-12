@@ -57,12 +57,25 @@ const MasterTeam: React.FC = () => {
     }
 
     try {
+      // Limpar o objeto para garantir que não enviamos campos extras ou IDs manuais em inserts
+      const payload = {
+        name: formData.name,
+        username: formData.username?.toUpperCase(),
+        password: formData.password,
+        email: formData.email,
+        role: formData.role
+      };
+
       if (editingMember) {
-        const { error } = await supabase.from('master_users').update(formData).eq('id', editingMember.id);
+        const { error } = await supabase
+          .from('master_users')
+          .update(payload)
+          .eq('id', editingMember.id);
         if (error) throw error;
       } else {
-        // CORREÇÃO: Removido o id: Math.random... para deixar o banco gerar o UUID
-        const { error } = await supabase.from('master_users').insert([formData]);
+        const { error } = await supabase
+          .from('master_users')
+          .insert([payload]);
         if (error) throw error;
       }
       
@@ -70,7 +83,12 @@ const MasterTeam: React.FC = () => {
       await fetchTeam();
       setIsModalOpen(false);
     } catch (err: any) {
-      alert("Erro ao salvar no banco de dados: " + err.message);
+      if (err.message?.includes('row-level security')) {
+        alert("ERRO DE PERMISSÃO: Você precisa executar o script SQL de política (INSERT) no painel do Supabase para esta tabela.");
+      } else {
+        alert("Erro ao salvar no banco de dados: " + err.message);
+      }
+      console.error("Full DB Error:", err);
     }
   };
 
@@ -114,6 +132,12 @@ const MasterTeam: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {team.length === 0 && !loading && (
+          <div className="col-span-full p-20 text-center bg-white rounded-[48px] border border-dashed border-slate-300">
+             <p className="text-slate-400 font-bold uppercase tracking-widest">Nenhum membro cadastrado na nuvem.</p>
+          </div>
+        )}
+        
         {team.map(member => (
           <div key={member.id} className="bg-white p-10 rounded-[48px] border border-slate-200 shadow-xl hover:shadow-2xl transition-all group">
             <div className="flex justify-between items-start mb-8">
@@ -132,8 +156,12 @@ const MasterTeam: React.FC = () => {
                   <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase rounded-lg border border-indigo-100 w-fit">
                       {getRoleLabel(member.role)}
                   </span>
-                  <p className="text-xs font-bold text-slate-400 flex items-center gap-1 mt-2"><Fingerprint size={12}/> Login: {member.username}</p>
-                  <p className="text-xs font-bold text-slate-400 flex items-center gap-1"><Mail size={12}/> {member.email}</p>
+                  <p className="text-xs font-bold text-slate-400 flex items-center gap-1 mt-2 tracking-tight">
+                    <Fingerprint size={12} className="text-indigo-400" /> Login: <strong>{member.username}</strong>
+                  </p>
+                  <p className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                    <Mail size={12} className="text-indigo-400" /> {member.email}
+                  </p>
                 </div>
             </div>
           </div>
@@ -145,22 +173,43 @@ const MasterTeam: React.FC = () => {
             <div className="bg-white w-full max-w-lg rounded-[48px] shadow-2xl p-10 animate-in zoom-in-95">
                <div className="flex justify-between items-center mb-10">
                   <h3 className="text-2xl font-black text-slate-900 uppercase">{editingMember ? 'Editar Acesso' : 'Novo Acesso Global'}</h3>
-                  <button onClick={() => setIsModalOpen(false)}><X size={32} /></button>
+                  <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
+                    <X size={32} />
+                  </button>
                </div>
                
                <div className="space-y-6">
-                  <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="Nome" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="Usuário" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value.toUpperCase()})} />
-                    <input type="password" placeholder="Senha" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Nome do Colaborador</label>
+                    <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-600" placeholder="Ex: Beto" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                   </div>
-                  <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="E-mail" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                  <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as MasterRole})}>
-                    <option value="master_support">Suporte</option>
-                    <option value="master_financial">Financeiro</option>
-                    <option value="master_admin">Administrador Master</option>
-                  </select>
-                  <button onClick={handleSave} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase flex items-center justify-center gap-3">
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Username (Login)</label>
+                      <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-600 uppercase" placeholder="BETO" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Senha</label>
+                      <input type="password" placeholder="***" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-600" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">E-mail Institucional</label>
+                    <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-600" placeholder="beto@gmail.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Cargo HQ</label>
+                    <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-600" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as MasterRole})}>
+                      <option value="master_support">Analista de Suporte</option>
+                      <option value="master_financial">Gestor Financeiro</option>
+                      <option value="master_admin">Administrador Master</option>
+                    </select>
+                  </div>
+
+                  <button onClick={handleSave} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase flex items-center justify-center gap-3 shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 mt-4">
                      <Save size={20} /> Salvar na Nuvem
                   </button>
                </div>
