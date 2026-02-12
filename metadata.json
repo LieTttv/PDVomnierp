@@ -1,0 +1,7 @@
+{
+  "name": "OmniERP - Sistema de Gestão Integrado",
+  "description": "Uma plataforma ERP completa para faturamento, controle de estoque, vendas externas e logística, com integração de IA para insights e otimização de rotas.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
