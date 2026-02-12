@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
-import { getActiveStoreId } from '../services/authService';
+import { getActiveStoreId, isMaster } from '../services/authService';
 
 interface GuardProps {
   children: React.ReactNode;
@@ -14,6 +14,13 @@ const Guard: React.FC<GuardProps> = ({ children }) => {
   const location = useLocation();
 
   useEffect(() => {
+    // Check master local session first
+    if (isMaster()) {
+      setSession({ user: { role: 'master' } });
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -26,14 +33,21 @@ const Guard: React.FC<GuardProps> = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) return null;
+  if (loading) return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
+    </div>
+  );
 
   if (!session) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Se não estiver na tela de seleção e não tiver loja ativa, obriga a escolher
-  if (!getActiveStoreId() && location.pathname !== '/select-store') {
+  // Master users bypass the store check to reach management pages
+  const master = isMaster();
+  const hasStore = !!getActiveStoreId();
+
+  if (!master && !hasStore && location.pathname !== '/select-store') {
     return <Navigate to="/select-store" replace />;
   }
 
