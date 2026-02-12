@@ -61,17 +61,6 @@ export const currentUser: User = {
   tenantId: 'tenant_123'
 };
 
-export const currentTenantConfig = {
-  id: 'tenant_123',
-  name: 'Omni S.A.'
-};
-
-export const MOCK_USERS: User[] = [
-  currentUser,
-  { id: 'u2', name: 'João Fiscal', email: 'joao@fiscal.com', role: 'fiscal', status: 'Ativo', permissions: ROLE_PRESETS.fiscal },
-  { id: 'u3', name: 'Maria Vendas', email: 'maria@vendas.com', role: 'vendas', status: 'Ativo', permissions: ROLE_PRESETS.vendas },
-];
-
 export const getProducts = async (): Promise<Product[]> => {
   const storeId = getActiveStoreId();
   if (!storeId) return [];
@@ -118,26 +107,62 @@ export const saveProduct = async (product: Partial<Product>) => {
   }
 };
 
-export const deleteProduct = async (id: string) => {
-  const { error } = await supabase
-    .from('products')
-    .delete()
-    .eq('id', id);
-  if (error) throw error;
-};
-
 export const getUsers = async (): Promise<User[]> => {
-  return MOCK_USERS;
+  const storeId = getActiveStoreId();
+  if (!storeId) return [];
+
+  // Buscamos usuários vinculados à loja ativa na tabela de perfis
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(`
+      id, name, email, role, 
+      store_users!inner(store_id)
+    `)
+    .eq('store_users.store_id', storeId);
+
+  if (error) {
+    console.error('Error fetching users:', error);
+    return [];
+  }
+  return (data || []).map(u => ({ ...u, status: 'Ativo', permissions: ROLE_PRESETS[u.role as UserRole] || ROLE_PRESETS.vendas }));
 };
 
 export const saveUser = async (user: Partial<User>) => {
-  console.log('Saving user:', user);
-  return user;
+  const storeId = getActiveStoreId();
+  if (!storeId) throw new Error('Loja não identificada.');
+
+  try {
+    if (user.id) {
+      const { error } = await supabase.from('profiles').update({
+        name: user.name,
+        role: user.role,
+        email: user.email
+      }).eq('id', user.id);
+      if (error) throw error;
+    } else {
+      // Criação de usuário requer Supabase Auth (simulado para o MVP de UI)
+      // Em produção, isso chamaria uma Edge Function ou Admin API
+      const { data: profile, error: profileErr } = await supabase.from('profiles').insert([{
+        name: user.name,
+        role: user.role,
+        email: user.email
+      }]).select().single();
+      
+      if (profileErr) throw profileErr;
+
+      await supabase.from('store_users').insert([{
+        user_id: profile.id,
+        store_id: storeId
+      }]);
+    }
+    return user;
+  } catch (err) {
+    console.error('Error saving user:', err);
+    throw err;
+  }
 };
 
 export const getAuditLogs = async (): Promise<AuditLog[]> => {
-  return [
-    { id: '1', userId: 'u1', userName: 'Admin Omni', action: 'Login', module: 'Auth', timestamp: new Date().toISOString() },
-    { id: '2', userId: 'u1', userName: 'Admin Omni', action: 'Create Product', module: 'Inventory', timestamp: new Date().toISOString() }
-  ];
+  const { data } = await supabase.from('audit_logs').select('*').limit(50).order('created_at', { ascending: false });
+  return data || [];
 };

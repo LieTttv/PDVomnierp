@@ -8,7 +8,8 @@ import {
   Calculator, ArrowRightLeft, Percent, HelpCircle,
   RefreshCw, Briefcase, Hash, MapPin
 } from 'lucide-react';
-import { currentUser, currentTenantConfig, saveProduct } from '../services/productService';
+// Fix: Removed currentTenantConfig import as it is not exported by productService
+import { currentUser, saveProduct } from '../services/productService';
 import { Product, Sector, ProductComponent } from '../types';
 import { MOCK_PRODUCTS } from '../constants';
 

@@ -28,7 +28,8 @@ import {
   EyeOff,
   AlertTriangle
 } from 'lucide-react';
-import { MOCK_USERS, currentUser, saveUser, getUsers, ROLE_PRESETS } from '../services/productService';
+// Fix: Removed non-existent MOCK_USERS import from productService
+import { currentUser, saveUser, getUsers, ROLE_PRESETS } from '../services/productService';
 import { User, UserRole, UserPermissions } from '../types';
 
 const Users: React.FC = () => {
