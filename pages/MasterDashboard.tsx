@@ -35,11 +35,10 @@ const MasterDashboard: React.FC = () => {
       
       if (error) throw error;
       setStores(data || []);
-      // Atualiza o backup local apenas com o que veio do banco de fato
+      // Atualiza o cache local apenas como espelho do banco
       localStorage.setItem('omni_hq_stores', JSON.stringify(data || []));
     } catch (e) {
-      console.error("Erro ao sincronizar com banco:", e);
-      // Se falhar o banco, usa o local apenas como visualização de emergência
+      console.error("Erro de sincronização:", e);
       const local = JSON.parse(localStorage.getItem('omni_hq_stores') || '[]');
       setStores(local);
     } finally {
@@ -56,24 +55,17 @@ const MasterDashboard: React.FC = () => {
   }, []);
 
   const handleClearCache = () => {
-    if (confirm("Isso forçará o sistema a ler apenas o Banco de Dados Nuvem. Continuar?")) {
-      localStorage.removeItem('omni_hq_stores');
-      fetchStores();
-    }
+    localStorage.removeItem('omni_hq_stores');
+    fetchStores();
   };
 
   const handleDeleteStore = async (id: string, name: string) => {
-    if (!confirm(`TEM CERTEZA? Isso apagará permanentemente a unidade "${name}" e todos os dados vinculados a ela no banco de dados.`)) return;
-
+    if (!confirm(`TEM CERTEZA? Isso apagará a unidade "${name}" PERMANENTEMENTE no banco de dados.`)) return;
     try {
       const { error } = await supabase.from('stores').delete().eq('id', id);
       if (error) throw error;
-      
-      // Remove do estado e do cache local
-      const updated = stores.filter(s => s.id !== id);
-      setStores(updated);
-      localStorage.setItem('omni_hq_stores', JSON.stringify(updated));
-      alert("Unidade removida com sucesso.");
+      await fetchStores();
+      alert("Unidade removida do banco de dados.");
     } catch (err: any) {
       alert("Erro ao deletar: " + err.message);
     }
@@ -102,8 +94,9 @@ const MasterDashboard: React.FC = () => {
       await fetchStores();
       setIsModalOpen(false);
       setNewStore({ nome: '', cnpj: '', admin_email: '', admin_password: '', plan: 'Premium', mensalidade: 499.00 });
+      alert("Unidade implantada com sucesso no banco de dados!");
     } catch (err: any) {
-      alert("Erro ao salvar no banco: " + err.message);
+      alert("Erro ao salvar: " + err.message);
     } finally {
       setIsDeploying(false);
     }
@@ -118,7 +111,7 @@ const MasterDashboard: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="px-3 py-1 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-full tracking-widest">HQ Command Center</span>
-            <button onClick={handleClearCache} className="px-3 py-1 bg-slate-200 text-slate-600 text-[9px] font-black uppercase rounded hover:bg-rose-500 hover:text-white transition-all">Limpar Cache Local</button>
+            <button onClick={handleClearCache} className="px-3 py-1 bg-slate-200 text-slate-600 text-[9px] font-black uppercase rounded hover:bg-indigo-600 hover:text-white transition-all">Forçar Sincronização</button>
           </div>
           <h2 className="text-5xl font-black text-slate-900 tracking-tighter uppercase italic">OmniERP <span className="text-indigo-600">HQ</span></h2>
         </div>
@@ -132,7 +125,7 @@ const MasterDashboard: React.FC = () => {
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-3 px-8 py-5 bg-slate-900 text-white rounded-[28px] font-black text-sm shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 uppercase tracking-widest"
             >
-              <Zap size={20} /> Nova Implementação
+              <Zap size={20} /> Nova Implantação
             </button>
           )}
         </div>
@@ -140,20 +133,20 @@ const MasterDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Unidades Ativas</p>
-          <p className="text-4xl font-black text-slate-900 tracking-tighter">{stores.filter(s => s.status === 'Ativo').length}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total de Unidades</p>
+          <p className="text-4xl font-black text-slate-900 tracking-tighter">{stores.length}</p>
         </div>
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Receita Recorrente (MRR)</p>
-          <p className="text-4xl font-black text-emerald-600 tracking-tighter">R$ {totalMRR.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">MRR Global</p>
+          <p className="text-4xl font-black text-emerald-600 tracking-tighter">R$ {totalMRR.toLocaleString('pt-BR')}</p>
         </div>
-        <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl flex flex-col justify-center">
-          <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Base Conectada</p>
-          <p className="text-2xl font-black mt-1">Supabase Realtime</p>
+        <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl">
+          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Base de Dados</p>
+          <p className="text-xl font-black">NUVEM CONECTADA</p>
         </div>
         <div className="bg-indigo-600 p-8 rounded-[40px] text-white shadow-2xl">
-          <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Acessos Hoje</p>
-          <p className="text-4xl font-black tracking-tighter">{stores.length + 4}</p>
+          <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Sincronização</p>
+          <p className="text-xl font-black">AUTOMÁTICA</p>
         </div>
       </div>
 
@@ -169,64 +162,60 @@ const MasterDashboard: React.FC = () => {
         </div>
         
         <div className="overflow-x-auto">
-          {loading ? (
-            <div className="p-20 text-center text-slate-400 font-bold animate-pulse uppercase tracking-widest text-xs">Sincronizando com Banco...</div>
-          ) : (
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100">
-                <tr>
-                  <th className="px-10 py-6">Status</th>
-                  <th className="px-10 py-6">Unidade / Cliente</th>
-                  <th className="px-10 py-6">Plano / MRR</th>
-                  <th className="px-10 py-6 text-right">Ações de Comando HQ</th>
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100">
+              <tr>
+                <th className="px-10 py-6">Status</th>
+                <th className="px-10 py-6">Unidade Cliente</th>
+                <th className="px-10 py-6">Plano / Valor</th>
+                <th className="px-10 py-6 text-right">Ações de Comando</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {stores.map(store => (
+                <tr key={store.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-10 py-8">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${store.status === 'Ativo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                      {store.status}
+                    </span>
+                  </td>
+                  <td className="px-10 py-8">
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black">
+                          {store.nome_fantasia?.charAt(0) || 'U'}
+                       </div>
+                       <div>
+                          <p className="font-black text-slate-900 text-lg tracking-tight uppercase">{store.nome_fantasia}</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">CNPJ: {store.cnpj}</p>
+                       </div>
+                    </div>
+                  </td>
+                  <td className="px-10 py-8">
+                    <div>
+                       <p className="text-sm font-black text-slate-700">{store.plano_ativo}</p>
+                       <p className="text-xs font-bold text-slate-400">R$ {Number(store.mensalidade || 0).toFixed(2)}</p>
+                    </div>
+                  </td>
+                  <td className="px-10 py-8 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <button 
+                        onClick={() => impersonateStore(store.id)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-slate-900 transition-all"
+                      >
+                         Acessar <ExternalLink size={14} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteStore(store.id, store.nome_fantasia)}
+                        className="p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all border border-rose-100"
+                      >
+                         <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {stores.map(store => (
-                  <tr key={store.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-10 py-8">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${store.status === 'Ativo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                        {store.status}
-                      </span>
-                    </td>
-                    <td className="px-10 py-8">
-                      <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black">
-                            {store.nome_fantasia.charAt(0)}
-                         </div>
-                         <div>
-                            <p className="font-black text-slate-900 text-lg tracking-tight uppercase">{store.nome_fantasia}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">CNPJ: {store.cnpj}</p>
-                         </div>
-                      </div>
-                    </td>
-                    <td className="px-10 py-8">
-                      <div>
-                         <p className="text-sm font-black text-slate-700">{store.plano_ativo}</p>
-                         <p className="text-xs font-bold text-slate-400">R$ {Number(store.mensalidade).toFixed(2)} / mensal</p>
-                      </div>
-                    </td>
-                    <td className="px-10 py-8 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <button 
-                          onClick={() => impersonateStore(store.id)}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-slate-900 transition-all"
-                        >
-                           Acessar Painel <ExternalLink size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteStore(store.id, store.nome_fantasia)}
-                          className="p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all border border-rose-100"
-                        >
-                           <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -234,36 +223,36 @@ const MasterDashboard: React.FC = () => {
         <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-2xl rounded-[48px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col">
             <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-               <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Implantar Nova Unidade</h3>
+               <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Nova Unidade</h3>
                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-all"><X size={32}/></button>
             </div>
             
             <form onSubmit={handleCreateStore} className="p-10 space-y-8">
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome da Empresa</label>
-                  <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none" value={newStore.nome} onChange={e => setNewStore({...newStore, nome: e.target.value})} />
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Razão Social</label>
+                  <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-indigo-600" value={newStore.nome} onChange={e => setNewStore({...newStore, nome: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CNPJ</label>
-                  <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none" value={newStore.cnpj} onChange={e => setNewStore({...newStore, cnpj: e.target.value})} />
+                  <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-indigo-600" value={newStore.cnpj} onChange={e => setNewStore({...newStore, cnpj: e.target.value})} />
                 </div>
               </div>
               
               <div className="bg-slate-900 p-8 rounded-[40px] text-white space-y-6">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Configuração Financeira SaaS</p>
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Contrato Mensal</p>
                 <div className="grid grid-cols-2 gap-6">
                    <select className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl font-bold text-xs outline-none" value={newStore.plan} onChange={e => setNewStore({...newStore, plan: e.target.value})}>
                       <option>Basic</option>
                       <option>Premium</option>
                       <option>Enterprise</option>
                    </select>
-                   <input required type="number" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl font-bold text-xs text-emerald-400" placeholder="MENSALIDADE (R$)" value={newStore.mensalidade} onChange={e => setNewStore({...newStore, mensalidade: parseFloat(e.target.value) || 0})} />
+                   <input required type="number" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl font-bold text-xs text-emerald-400" placeholder="VALOR MENSAL" value={newStore.mensalidade} onChange={e => setNewStore({...newStore, mensalidade: parseFloat(e.target.value) || 0})} />
                 </div>
               </div>
 
               <button disabled={isDeploying} className="w-full py-6 bg-indigo-600 text-white rounded-[32px] font-black uppercase tracking-widest shadow-2xl hover:bg-indigo-700 transition-all">
-                 {isDeploying ? "Deploying..." : "Executar Implantação"}
+                 {isDeploying ? "Deploying..." : "Efetivar Implantação"}
               </button>
             </form>
           </div>
