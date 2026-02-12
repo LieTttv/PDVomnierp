@@ -35,10 +35,9 @@ const MasterDashboard: React.FC = () => {
       
       if (error) throw error;
       setStores(data || []);
-      // Atualiza o cache local apenas como espelho do banco
       localStorage.setItem('omni_hq_stores', JSON.stringify(data || []));
     } catch (e) {
-      console.error("Erro de sincronização:", e);
+      console.error("Erro sync:", e);
       const local = JSON.parse(localStorage.getItem('omni_hq_stores') || '[]');
       setStores(local);
     } finally {
@@ -60,12 +59,11 @@ const MasterDashboard: React.FC = () => {
   };
 
   const handleDeleteStore = async (id: string, name: string) => {
-    if (!confirm(`TEM CERTEZA? Isso apagará a unidade "${name}" PERMANENTEMENTE no banco de dados.`)) return;
+    if (!confirm(`Deseja realmente remover a unidade "${name}"?`)) return;
     try {
       const { error } = await supabase.from('stores').delete().eq('id', id);
       if (error) throw error;
       await fetchStores();
-      alert("Unidade removida do banco de dados.");
     } catch (err: any) {
       alert("Erro ao deletar: " + err.message);
     }
@@ -75,15 +73,13 @@ const MasterDashboard: React.FC = () => {
     e.preventDefault();
     setIsDeploying(true);
     
-    const storeId = Math.random().toString(36).substr(2, 9);
+    // IMPORTANTE: Não enviamos o ID. O Postgres (Supabase) gera o UUID automaticamente.
     const storeData = {
-      id: storeId,
       nome_fantasia: newStore.nome,
       cnpj: newStore.cnpj,
       plano_ativo: newStore.plan,
       mensalidade: newStore.mensalidade,
       status: 'Ativo',
-      created_at: new Date().toISOString(),
       vencimento_mensalidade: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]
     };
 
@@ -94,7 +90,7 @@ const MasterDashboard: React.FC = () => {
       await fetchStores();
       setIsModalOpen(false);
       setNewStore({ nome: '', cnpj: '', admin_email: '', admin_password: '', plan: 'Premium', mensalidade: 499.00 });
-      alert("Unidade implantada com sucesso no banco de dados!");
+      alert("Unidade implantada com sucesso via UUID!");
     } catch (err: any) {
       alert("Erro ao salvar: " + err.message);
     } finally {
@@ -110,8 +106,8 @@ const MasterDashboard: React.FC = () => {
       <div className="flex justify-between items-end">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span className="px-3 py-1 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-full tracking-widest">HQ Command Center</span>
-            <button onClick={handleClearCache} className="px-3 py-1 bg-slate-200 text-slate-600 text-[9px] font-black uppercase rounded hover:bg-indigo-600 hover:text-white transition-all">Forçar Sincronização</button>
+            <span className="px-3 py-1 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-full tracking-widest">HQ Center</span>
+            <button onClick={handleClearCache} className="px-3 py-1 bg-slate-200 text-slate-600 text-[9px] font-black uppercase rounded hover:bg-indigo-600 hover:text-white transition-all">Forçar Sync</button>
           </div>
           <h2 className="text-5xl font-black text-slate-900 tracking-tighter uppercase italic">OmniERP <span className="text-indigo-600">HQ</span></h2>
         </div>
@@ -125,7 +121,7 @@ const MasterDashboard: React.FC = () => {
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-3 px-8 py-5 bg-slate-900 text-white rounded-[28px] font-black text-sm shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 uppercase tracking-widest"
             >
-              <Zap size={20} /> Nova Implantação
+              <Zap size={20} /> Nova Unidade
             </button>
           )}
         </div>
@@ -133,27 +129,27 @@ const MasterDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total de Unidades</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Unidades Ativas</p>
           <p className="text-4xl font-black text-slate-900 tracking-tighter">{stores.length}</p>
         </div>
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">MRR Global</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Receita SaaS</p>
           <p className="text-4xl font-black text-emerald-600 tracking-tighter">R$ {totalMRR.toLocaleString('pt-BR')}</p>
         </div>
         <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl">
-          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Base de Dados</p>
-          <p className="text-xl font-black">NUVEM CONECTADA</p>
+          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Database Cloud</p>
+          <p className="text-xl font-black">UUID COMPLIANT</p>
         </div>
         <div className="bg-indigo-600 p-8 rounded-[40px] text-white shadow-2xl">
-          <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Sincronização</p>
-          <p className="text-xl font-black">AUTOMÁTICA</p>
+          <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Status</p>
+          <p className="text-xl font-black">ONLINE</p>
         </div>
       </div>
 
       <div className="bg-white rounded-[48px] border border-slate-200 shadow-xl overflow-hidden">
         <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-           <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight flex items-center gap-3">
-             <Activity className="text-indigo-600" size={20} /> Gestão de Licenciamento
+           <h3 className="font-black text-slate-900 text-lg uppercase flex items-center gap-3">
+             <Activity className="text-indigo-600" size={20} /> Comando de Licenciamento
            </h3>
            <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -166,9 +162,9 @@ const MasterDashboard: React.FC = () => {
             <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100">
               <tr>
                 <th className="px-10 py-6">Status</th>
-                <th className="px-10 py-6">Unidade Cliente</th>
-                <th className="px-10 py-6">Plano / Valor</th>
-                <th className="px-10 py-6 text-right">Ações de Comando</th>
+                <th className="px-10 py-6">Unidade / Razão Social</th>
+                <th className="px-10 py-6">Contrato</th>
+                <th className="px-10 py-6 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -202,7 +198,7 @@ const MasterDashboard: React.FC = () => {
                         onClick={() => impersonateStore(store.id)}
                         className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-slate-900 transition-all"
                       >
-                         Acessar <ExternalLink size={14} />
+                         Gerenciar <ExternalLink size={14} />
                       </button>
                       <button 
                         onClick={() => handleDeleteStore(store.id, store.nome_fantasia)}
@@ -222,8 +218,8 @@ const MasterDashboard: React.FC = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-2xl rounded-[48px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col">
-            <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-               <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Nova Unidade</h3>
+            <div className="p-10 border-b border-slate-100 flex items-center justify-between">
+               <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Nova Implementação</h3>
                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-all"><X size={32}/></button>
             </div>
             
@@ -240,19 +236,19 @@ const MasterDashboard: React.FC = () => {
               </div>
               
               <div className="bg-slate-900 p-8 rounded-[40px] text-white space-y-6">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Contrato Mensal</p>
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">SaaS Contract</p>
                 <div className="grid grid-cols-2 gap-6">
                    <select className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl font-bold text-xs outline-none" value={newStore.plan} onChange={e => setNewStore({...newStore, plan: e.target.value})}>
                       <option>Basic</option>
                       <option>Premium</option>
                       <option>Enterprise</option>
                    </select>
-                   <input required type="number" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl font-bold text-xs text-emerald-400" placeholder="VALOR MENSAL" value={newStore.mensalidade} onChange={e => setNewStore({...newStore, mensalidade: parseFloat(e.target.value) || 0})} />
+                   <input required type="number" className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl font-bold text-xs text-emerald-400" placeholder="MENSALIDADE" value={newStore.mensalidade} onChange={e => setNewStore({...newStore, mensalidade: parseFloat(e.target.value) || 0})} />
                 </div>
               </div>
 
               <button disabled={isDeploying} className="w-full py-6 bg-indigo-600 text-white rounded-[32px] font-black uppercase tracking-widest shadow-2xl hover:bg-indigo-700 transition-all">
-                 {isDeploying ? "Deploying..." : "Efetivar Implantação"}
+                 {isDeploying ? "Deploying..." : "Finalizar Implantação"}
               </button>
             </form>
           </div>
