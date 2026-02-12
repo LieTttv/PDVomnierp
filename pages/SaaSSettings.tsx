@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { 
   Settings2, ShieldCheck, DollarSign, Database, Server, 
   History, Globe, Lock, AlertTriangle, Save, RefreshCw,
   LayoutGrid, Power, Cpu, Terminal,
-  // Fix: Added missing CheckCircle2 icon to resolve "Cannot find name 'CheckCircle2'" error
+  // Fix: Added missing CheckCircle2 icon
   CheckCircle2
 } from 'lucide-react';
 

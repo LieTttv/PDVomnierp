@@ -1,25 +1,30 @@
 
 import { supabase } from './supabaseClient';
-import { Profile, StoreUser, User, UserRole, Store } from '../types';
+import { StoreUser, UserRole, MasterUser, MasterRole } from '../types';
 
-export const login = async (email: string, password: string) => {
-  const normalizedEmail = email.trim().toUpperCase();
+// In a real scenario, these would be in a "master_users" table in Supabase
+const HQ_TEAM: MasterUser[] = [
+  { id: 'master-1', name: 'Diretor Omni', username: 'MASTER', role: 'master_admin' },
+  { id: 'master-2', name: 'Suporte Técnico', username: 'SUPORTE', role: 'master_support' },
+  { id: 'master-3', name: 'Financeiro HQ', username: 'FINANCEIRO', role: 'master_financial' },
+];
+
+export const login = async (identifier: string, password: string) => {
+  const normalizedId = identifier.trim().toUpperCase();
   
-  // Master Superuser Login Logic
-  if ((normalizedEmail === 'MASTER' || normalizedEmail === 'MASTER@GMAIL.COM') && password === 'MASTERX95620083') {
-    const masterUser = {
-      id: 'master-id',
-      email: 'master@system',
-      role: 'master' as UserRole,
-      name: 'Omni Super Master'
-    };
+  // Check HQ Internal Team first
+  const internalMember = HQ_TEAM.find(m => m.username === normalizedId);
+  if (internalMember && password === 'MASTERX95620083') {
     localStorage.setItem('omni_master_session', 'true');
-    localStorage.setItem('active_store_id', 'MASTER_CONTROLE');
-    return masterUser;
+    localStorage.setItem('omni_master_role', internalMember.role);
+    localStorage.setItem('omni_master_id', internalMember.id);
+    // Masters don't have a fixed store until they "impersonate" one
+    return { ...internalMember, role: 'master' as UserRole };
   }
 
+  // Standard Store User Login
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: identifier,
     password,
   });
   if (error) throw error;
@@ -30,18 +35,32 @@ export const isMaster = (): boolean => {
   return localStorage.getItem('omni_master_session') === 'true';
 };
 
+export const getMasterRole = (): MasterRole | null => {
+  return localStorage.getItem('omni_master_role') as MasterRole;
+};
+
+export const impersonateStore = (storeId: string) => {
+  if (!isMaster()) return;
+  localStorage.setItem('active_store_id', storeId);
+  window.location.href = '#/';
+};
+
 export const logout = async () => {
   if (!isMaster()) {
     await supabase.auth.signOut();
   }
   localStorage.removeItem('active_store_id');
   localStorage.removeItem('omni_master_session');
+  localStorage.removeItem('omni_master_role');
+  localStorage.removeItem('omni_master_id');
   window.location.href = '#/login';
 };
 
 export const getSessionUser = async (): Promise<any> => {
   if (isMaster()) {
-    return { id: 'master-id', email: 'master@system', role: 'master', name: 'Master Admin' };
+    const id = localStorage.getItem('omni_master_id');
+    const member = HQ_TEAM.find(m => m.id === id) || HQ_TEAM[0];
+    return { ...member, role: 'master' };
   }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -51,17 +70,17 @@ export const getSessionUser = async (): Promise<any> => {
 };
 
 export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
-  if (userId === 'master-id') {
-    // Return a virtual store for the master so the store selector doesn't block them
+  if (isMaster()) {
+    // HQ Team sees a "Virtual HQ" entry if they aren't impersonating
     return [{
-      id: 'virtual-master',
-      store_id: 'MASTER_CONTROLE',
-      user_id: 'master-id',
+      id: 'virtual-hq',
+      store_id: 'OMNI_HQ',
+      user_id: userId,
       stores: {
-        id: 'MASTER_CONTROLE',
-        nome_fantasia: 'Painel Central Omni',
+        id: 'OMNI_HQ',
+        nome_fantasia: 'OmniERP Headquarters',
         cnpj: '00.000.000/0000-00',
-        plano_ativo: 'SaaS Master',
+        plano_ativo: 'PLATFORM_OWNER',
         created_at: new Date().toISOString()
       }
     }];
@@ -70,15 +89,8 @@ export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
   const { data, error } = await supabase
     .from('store_users')
     .select(`
-      id,
-      store_id,
-      user_id,
-      stores (
-        id,
-        nome_fantasia,
-        cnpj,
-        plano_ativo
-      )
+      id, store_id, user_id,
+      stores ( id, nome_fantasia, cnpj, plano_ativo )
     `)
     .eq('user_id', userId);
   
@@ -95,7 +107,7 @@ export const setActiveStoreId = (storeId: string) => {
 };
 
 export const hasModuleAccess = async (moduleId: string): Promise<boolean> => {
-  if (isMaster()) return true;
+  if (isMaster()) return true; // Master HQ team has bypass access
   const storeId = getActiveStoreId();
   if (!storeId) return false;
 

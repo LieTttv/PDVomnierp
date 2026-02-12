@@ -1,6 +1,6 @@
 
-// Fix: Added missing roles to UserRole and expanded interfaces to match usage
 export type UserRole = 'master' | 'admin' | 'user' | 'fiscal' | 'vendas' | 'estoquista' | 'personalizado';
+export type MasterRole = 'master_admin' | 'master_support' | 'master_financial';
 
 export interface Profile {
   id: string;
@@ -28,7 +28,6 @@ export interface Store {
   mensalidade?: number;
   vencimento_mensalidade?: string;
   status?: 'Ativo' | 'Inativo';
-  // Fix: Renamed modules to store_modules to match the database schema and queries used in MasterDashboard
   store_modules?: StoreModule[];
 }
 
@@ -39,7 +38,16 @@ export interface StoreUser {
   stores?: Store;
 }
 
-// Fix: Expanded Product interface to include all required fields for management and fiscal flows
+export interface MasterUser {
+  id: string;
+  name: string;
+  username: string;
+  role: MasterRole;
+  email?: string;
+  lastAccess?: string;
+}
+
+// Fix: Exported ProductComponent to satisfy imports in other files
 export interface ProductComponent {
   id: string;
   productId: string;
@@ -52,37 +60,35 @@ export interface ProductComponent {
 export interface Product {
   id: string;
   store_id: string;
+  // Fix: Added missing optional properties to satisfy usage in constants and forms
   tenantId?: string;
   codigo: string;
   ean: string;
-  referencia: string;
+  referencia?: string;
   nome: string;
-  nomePdv: string;
-  grupoId: string;
-  unidadeMedida: string;
+  nomePdv?: string;
+  grupoId?: string;
   preco: number;
   custo: number;
   estoque: number;
   minStock: number;
-  maxStock: number;
+  maxStock?: number;
   ativo: boolean;
-  dimensao: boolean;
-  ncm: string;
-  origem: string;
-  updatedAt: string;
+  unidadeMedida: string;
   enviarMobile: boolean;
+  ncm?: string;
+  origem?: string;
+  updatedAt?: string;
   created_at: string;
+  dimensao?: boolean;
   composition?: ProductComponent[];
-  advanced: {
-    pDescontoMax: number;
-    pAcrescimoMax: number;
-    cicloPosVenda: number;
-    podeSerBrinde: boolean;
-    pesoBruto: number;
-    pesoLiquido: number;
-  };
   tax?: any;
   cfops?: any;
+  advanced: {
+    pesoBruto: number;
+    pesoLiquido: number;
+    [key: string]: any;
+  };
 }
 
 export enum Sector {
@@ -93,27 +99,28 @@ export enum Sector {
   FACTORY = 'Fábrica'
 }
 
+// Fix: Added EntityType and OrderStatus types
 export type EntityType = 'CLIENTE' | 'FORNECEDOR' | 'TRANSPORTADORA' | 'FABRICA';
+export type OrderStatus = 'Pendente' | 'Liberado' | 'Faturado' | 'Cancelado' | 'Sincronizado';
 
-// Fix: Added missing Entity, Order, Invoice, and AuditLog interfaces
 export interface Entity {
   id: string;
   name: string;
-  tradeName: string;
+  // Fix: Added missing optional properties for Entity
+  tradeName?: string;
   document: string;
   type: EntityType;
-  sector: Sector;
-  address: string;
-  email: string;
-  phone: string;
   status: string;
-  createdAt: string;
-  creditLimit: number;
+  address: string;
+  sector: Sector;
+  email?: string;
+  phone?: string;
+  createdAt?: string;
+  creditLimit?: number;
   rating?: number;
 }
 
-export type OrderStatus = 'Pendente' | 'Liberado' | 'Faturado' | 'Cancelado' | 'Sincronizado';
-
+// Fix: Added OrderItem interface
 export interface OrderItem {
   productId: string;
   productName: string;
@@ -128,39 +135,32 @@ export interface Order {
   clientId: string;
   clientName: string;
   date: string;
-  items: OrderItem[];
   total: number;
   status: OrderStatus;
-  sector: Sector;
   origin: 'Interno' | 'Externo';
   sellerName?: string;
+  // Fix: Updated items type to OrderItem
+  items: OrderItem[];
+  sector?: Sector;
 }
 
 export interface Invoice {
   id: string;
   number: string;
-  serie: string;
-  clientId: string;
-  sector: Sector;
+  total: number;
+  status: string;
   date: string;
   dueDate: string;
-  total: number;
+  clientId: string;
+  items: any[];
+  serie: string;
   tax: number;
-  status: string;
   naturezaOperacao: string;
-  items: OrderItem[];
   paymentDate?: string;
+  sector?: Sector;
 }
 
-export interface AuditLog {
-  id: string;
-  userId: string;
-  userName: string;
-  action: string;
-  module: string;
-  timestamp: string;
-}
-
+// Fix: Added IncomingInvoice and IncomingInvoiceItem types
 export interface IncomingInvoiceItem {
   id: string;
   description: string;
@@ -176,7 +176,7 @@ export interface IncomingInvoiceItem {
 }
 
 export interface IncomingInvoice {
-  id: string;
+  id?: string;
   number: string;
   serie: string;
   providerName: string;
@@ -195,6 +195,7 @@ export interface UserPermissions {
     edit?: boolean;
     delete?: boolean;
     special?: string[];
+    // Fix: Allow extra properties used in permission presets
     [key: string]: any;
   };
 }
@@ -207,5 +208,13 @@ export interface User {
   status: string;
   permissions: UserPermissions;
   tenantId?: string;
-  lastAccess?: string;
+}
+
+export interface AuditLog {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  module: string;
+  timestamp: string;
 }
