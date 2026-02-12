@@ -4,28 +4,64 @@ import { StoreUser, UserRole, MasterUser, MasterRole } from '../types';
 
 export const login = async (identifier: string, password: string) => {
   const normalizedId = identifier.trim().toUpperCase();
-  
-  // Tentar buscar na tabela de Master Users (Equipe HQ)
-  const { data: internalMember, error: masterError } = await supabase
-    .from('master_users')
-    .select('*')
-    .eq('username', normalizedId)
-    .eq('password', password) // Em prod usar hash
-    .single();
+  const MASTER_PWD = 'MASTERX95620083'; // Sua chave mestra configurada
 
-  if (internalMember && !masterError) {
+  // 1. Fallback Imediato para Usuário MASTER (Evita erro de API Key no primeiro acesso)
+  if (normalizedId === 'MASTER' && password === MASTER_PWD) {
+    const defaultMaster = {
+      id: 'master-hq-id',
+      name: 'Diretor Omni',
+      username: 'MASTER',
+      role: 'master_admin',
+      email: 'admin@omnierp.hq'
+    };
+    
     localStorage.setItem('omni_master_session', 'true');
-    localStorage.setItem('omni_master_role', internalMember.role);
-    localStorage.setItem('omni_master_id', internalMember.id);
-    return { ...internalMember, role: 'master' as UserRole };
+    localStorage.setItem('omni_master_role', defaultMaster.role);
+    localStorage.setItem('omni_master_id', defaultMaster.id);
+    
+    // Tenta salvar/atualizar no banco silenciosamente se a conexão estiver ativa
+    try {
+      await supabase.from('master_users').upsert([defaultMaster]);
+    } catch (e) {
+      console.warn("Database sync skipped: Using local master session.");
+    }
+    
+    return { ...defaultMaster, role: 'master' as UserRole };
   }
 
-  // Login Padrão de Usuário de Loja
+  // 2. Tentar buscar outros membros da equipe HQ no banco
+  try {
+    const { data: internalMember, error: masterError } = await supabase
+      .from('master_users')
+      .select('*')
+      .eq('username', normalizedId)
+      .eq('password', password)
+      .single();
+
+    if (internalMember && !masterError) {
+      localStorage.setItem('omni_master_session', 'true');
+      localStorage.setItem('omni_master_role', internalMember.role);
+      localStorage.setItem('omni_master_id', internalMember.id);
+      return { ...internalMember, role: 'master' as UserRole };
+    }
+  } catch (e) {
+    console.error("Master DB check failed", e);
+  }
+
+  // 3. Login Padrão de Usuário de Loja (Auth do Supabase)
   const { data, error } = await supabase.auth.signInWithPassword({
     email: identifier,
     password,
   });
-  if (error) throw error;
+  
+  if (error) {
+    if (error.message.includes("API key")) {
+      throw new Error("Configuração de API pendente. Use o acesso MASTER para configurar.");
+    }
+    throw error;
+  }
+  
   return data.user;
 };
 
@@ -57,9 +93,13 @@ export const logout = async () => {
 export const getSessionUser = async (): Promise<any> => {
   if (isMaster()) {
     const id = localStorage.getItem('omni_master_id');
-    const { data } = await supabase.from('master_users').select('*').eq('id', id).single();
-    return { ...data, role: 'master' };
+    try {
+      const { data } = await supabase.from('master_users').select('*').eq('id', id).single();
+      if (data) return { ...data, role: 'master' };
+    } catch (e) {}
+    return { name: 'Diretor Omni', role: 'master' };
   }
+  
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   
@@ -90,7 +130,7 @@ export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
     .from('store_users')
     .select(`
       id, store_id, user_id,
-      stores ( id, nome_fantasia, cnpj, plano_ativo, status, mensalidade )
+      stores ( id, nome_fantasia, cnpj, plano_ativo, status, mensalidade, vencimento_mensalidade )
     `)
     .eq('user_id', userId);
   
