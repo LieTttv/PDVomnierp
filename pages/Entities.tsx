@@ -4,7 +4,7 @@ import {
   Users, UserPlus, Search, Filter, Building2, Truck, Factory, UserCheck,
   MoreVertical, Eye, FileText, TrendingUp, Download, Mail, Phone,
   CheckCircle2, XCircle, MapPin, Briefcase, X, Save, FileSignature,
-  CreditCard, Globe, Building, Info, ShieldCheck, Star, ArrowRight, RefreshCw
+  CreditCard, Globe, Building, Info, ShieldCheck, Star, ArrowRight, RefreshCw, Trash2
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { getActiveStoreId } from '../services/authService';
@@ -84,6 +84,21 @@ const Entities: React.FC = () => {
       });
     }
     setIsFormOpen(true);
+  };
+
+  const handleDeleteEntity = async (id: string, name: string) => {
+    if (!confirm(`Deseja realmente excluir permanentemente "${name}"?`)) return;
+
+    try {
+      const { error } = await supabase.from('entities').delete().eq('id', id);
+      if (error) throw error;
+      
+      setEntities(entities.filter(e => e.id !== id));
+      if (selectedEntity?.id === id) setSelectedEntity(null);
+      alert("Registro excluído.");
+    } catch (err: any) {
+      alert("Erro ao excluir: " + err.message);
+    }
   };
 
   const handleSave = async () => {
@@ -182,29 +197,25 @@ const Entities: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <button className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all">
-              <Filter size={16} /> Filtros Avançados
-            </button>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               {loading ? (
-                <div className="p-20 text-center text-slate-400 font-bold animate-pulse">Consultando Banco de Dados...</div>
+                <div className="p-20 text-center text-slate-400 font-bold animate-pulse">Sincronizando Base de Dados...</div>
               ) : (
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
                     <tr>
                       <th className="px-6 py-4">Identificação</th>
                       <th className="px-6 py-4">CNPJ / CPF</th>
-                      <th className="px-6 py-4">Setor Fiscal</th>
-                      <th className="px-6 py-4">Crédito</th>
+                      <th className="px-6 py-4">Setor</th>
                       <th className="px-6 py-4 text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredEntities.length === 0 ? (
-                      <tr><td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-bold italic">Nenhum registro encontrado.</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-20 text-center text-slate-400 font-bold italic">Nenhum registro encontrado.</td></tr>
                     ) : (
                       filteredEntities.map((entity) => (
                         <tr 
@@ -227,18 +238,10 @@ const Entities: React.FC = () => {
                           <td className="px-6 py-4">
                             <span className="text-[9px] font-black uppercase text-slate-400 border border-slate-200 px-1.5 py-0.5 rounded bg-slate-50">{entity.sector}</span>
                           </td>
-                          <td className="px-6 py-4">
-                             <div className="flex flex-col">
-                               <span className="text-xs font-black text-slate-900">R$ {(entity.creditLimit || 0).toLocaleString('pt-BR')}</span>
-                               <div className="flex gap-0.5">
-                                 {[1,2,3,4,5].map(s => <Star key={s} size={8} className={s <= (entity.rating || 0) ? "text-amber-400 fill-amber-400" : "text-slate-200"} />)}
-                               </div>
-                             </div>
-                          </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={(e) => { e.stopPropagation(); handleOpenForm(entity); }} className="p-2 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"><FileSignature size={16} /></button>
-                              <button className="p-2 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"><MoreVertical size={16} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleDeleteEntity(entity.id, entity.name); }} className="p-2 text-slate-300 hover:text-rose-600 rounded-lg transition-colors"><Trash2 size={16} /></button>
                             </div>
                           </td>
                         </tr>
@@ -256,14 +259,6 @@ const Entities: React.FC = () => {
           {selectedEntity ? (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-in slide-in-from-right duration-300 h-fit">
               <div className={`h-24 bg-${getTabColor(selectedEntity.type)}-600 relative overflow-hidden`}>
-                <div className="absolute inset-0 opacity-10 flex items-center justify-center transform scale-150">
-                   {getEntityIcon(selectedEntity.type)}
-                </div>
-                <div className="absolute -bottom-8 left-6">
-                   <div className="w-20 h-20 rounded-2xl bg-white shadow-2xl flex items-center justify-center text-3xl font-black text-slate-800 border-4 border-white">
-                      {selectedEntity.name.charAt(0)}
-                   </div>
-                </div>
                 <div className="absolute top-4 right-4">
                   <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase border border-white/30 bg-white/20 text-white backdrop-blur-md`}>
                     {selectedEntity.status}
@@ -273,61 +268,33 @@ const Entities: React.FC = () => {
               <div className="pt-12 p-8 space-y-8">
                 <div>
                   <h3 className="text-2xl font-black text-slate-900 leading-tight tracking-tighter">{selectedEntity.name}</h3>
-                  <p className="text-[10px] font-black text-slate-400 flex items-center gap-1.5 mt-1 uppercase tracking-widest">
-                    {getEntityIcon(selectedEntity.type)} {selectedEntity.type} • {selectedEntity.sector}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1 flex items-center justify-center gap-1"><CreditCard size={10}/> Limite Crédito</p>
-                    <p className="text-lg font-black text-slate-900">R$ {(selectedEntity.creditLimit || 0).toLocaleString('pt-BR')}</p>
-                  </div>
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1 flex items-center justify-center gap-1"><TrendingUp size={10}/> Rating</p>
-                    <div className="flex justify-center gap-1 text-amber-400">
-                       {[1,2,3,4,5].map(s => <Star key={s} size={14} className={s <= (selectedEntity.rating || 0) ? "fill-amber-400" : "text-slate-200"} />)}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="space-y-4">
                    <div className="flex items-center gap-4">
                       <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100"><Mail size={14} /></div>
                       <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-slate-400 uppercase">E-mail Comercial</span>
                         <span className="text-xs font-bold text-slate-700">{selectedEntity.email || 'Não informado'}</span>
                       </div>
                    </div>
                    <div className="flex items-center gap-4">
                       <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100"><Phone size={14} /></div>
                       <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-slate-400 uppercase">Telefone</span>
                         <span className="text-xs font-bold text-slate-700">{selectedEntity.phone || 'Não informado'}</span>
-                      </div>
-                   </div>
-                   <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100"><MapPin size={14} /></div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-slate-400 uppercase">Endereço Principal</span>
-                        <span className="text-xs font-bold text-slate-700 leading-tight">{selectedEntity.address || 'Não informado'}</span>
                       </div>
                    </div>
                 </div>
 
-                <div className="pt-6 border-t border-slate-100 space-y-3">
-                   <button className="w-full flex items-center justify-between p-4 bg-slate-900 text-white hover:bg-slate-800 rounded-2xl text-xs font-black uppercase tracking-widest transition-all">
-                      Emitir Extrato <ArrowRight size={16} />
+                <div className="pt-6 border-t border-slate-100">
+                   <button onClick={() => handleDeleteEntity(selectedEntity.id, selectedEntity.name)} className="w-full flex items-center justify-center p-4 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all gap-2">
+                      <Trash2 size={16} /> Excluir Registro
                    </button>
                 </div>
               </div>
             </div>
           ) : (
             <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-12 text-center flex flex-col items-center justify-center h-[500px]">
-               <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center text-slate-200 shadow-sm mb-6 border border-slate-100">
-                  <Briefcase size={40} />
-               </div>
-               <p className="text-slate-400 font-bold text-sm max-w-xs uppercase tracking-tight">Selecione uma entidade para visualizar detalhes permanentes.</p>
+               <p className="text-slate-400 font-bold text-sm max-w-xs uppercase tracking-tight">Selecione uma entidade para gerenciar permanentemente.</p>
             </div>
           )}
         </div>
@@ -337,10 +304,7 @@ const Entities: React.FC = () => {
         <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-               <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-100"><UserPlus size={24} /></div>
-                  <h3 className="font-black text-slate-900 text-2xl tracking-tighter uppercase">{formData.id ? 'Editar ' : 'Novo '} {activeTab.toLowerCase()}</h3>
-               </div>
+               <h3 className="font-black text-slate-900 text-2xl tracking-tighter uppercase">{formData.id ? 'Editar ' : 'Novo '} {activeTab.toLowerCase()}</h3>
                <button onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={32} /></button>
             </div>
 
@@ -365,18 +329,6 @@ const Entities: React.FC = () => {
                  <div className="md:col-span-2 space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Endereço Completo</label>
                     <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-600" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} />
-                 </div>
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Limite de Crédito (R$)</label>
-                    <input type="number" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-600" value={formData.creditLimit || 0} onChange={e => setFormData({...formData, creditLimit: parseFloat(e.target.value) || 0})} />
-                 </div>
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Status</label>
-                    <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-600" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
-                       <option value="Ativo">Ativo</option>
-                       <option value="Bloqueado">Bloqueado</option>
-                       <option value="Inativo">Inativo</option>
-                    </select>
                  </div>
               </div>
             </div>

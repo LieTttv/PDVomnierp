@@ -4,7 +4,7 @@ import {
   Building2, Plus, X, Globe, DollarSign, 
   AlertCircle, ArrowRight, TrendingUp,
   Activity, Search, ShieldCheck, Zap,
-  ExternalLink, CreditCard, WifiOff
+  ExternalLink, CreditCard, WifiOff, Trash2, RefreshCw
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { isMaster, impersonateStore, getMasterRole } from '../services/authService';
@@ -13,7 +13,6 @@ import { Store } from '../types';
 const MasterDashboard: React.FC = () => {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isOffline, setIsOffline] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   
@@ -28,35 +27,24 @@ const MasterDashboard: React.FC = () => {
 
   const fetchStores = async () => {
     setLoading(true);
-    let dbStores: Store[] = [];
-    
     try {
       const { data, error } = await supabase
         .from('stores')
         .select(`*`)
         .order('created_at', { ascending: false });
       
-      if (!error && data) {
-        dbStores = data;
-        setIsOffline(false);
-      } else {
-        setIsOffline(true);
-      }
+      if (error) throw error;
+      setStores(data || []);
+      // Atualiza o backup local apenas com o que veio do banco de fato
+      localStorage.setItem('omni_hq_stores', JSON.stringify(data || []));
     } catch (e) {
-      setIsOffline(true);
+      console.error("Erro ao sincronizar com banco:", e);
+      // Se falhar o banco, usa o local apenas como visualização de emergência
+      const local = JSON.parse(localStorage.getItem('omni_hq_stores') || '[]');
+      setStores(local);
+    } finally {
+      setLoading(false);
     }
-
-    // Mesclar com LocalStorage
-    const localStores = JSON.parse(localStorage.getItem('omni_hq_stores') || '[]');
-    const merged = [...dbStores];
-    localStores.forEach((ls: Store) => {
-      if (!merged.find(m => m.id === ls.id || m.cnpj === ls.cnpj)) {
-        merged.push(ls);
-      }
-    });
-
-    setStores(merged);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -66,6 +54,30 @@ const MasterDashboard: React.FC = () => {
     }
     fetchStores();
   }, []);
+
+  const handleClearCache = () => {
+    if (confirm("Isso forçará o sistema a ler apenas o Banco de Dados Nuvem. Continuar?")) {
+      localStorage.removeItem('omni_hq_stores');
+      fetchStores();
+    }
+  };
+
+  const handleDeleteStore = async (id: string, name: string) => {
+    if (!confirm(`TEM CERTEZA? Isso apagará permanentemente a unidade "${name}" e todos os dados vinculados a ela no banco de dados.`)) return;
+
+    try {
+      const { error } = await supabase.from('stores').delete().eq('id', id);
+      if (error) throw error;
+      
+      // Remove do estado e do cache local
+      const updated = stores.filter(s => s.id !== id);
+      setStores(updated);
+      localStorage.setItem('omni_hq_stores', JSON.stringify(updated));
+      alert("Unidade removida com sucesso.");
+    } catch (err: any) {
+      alert("Erro ao deletar: " + err.message);
+    }
+  };
 
   const handleCreateStore = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,20 +95,18 @@ const MasterDashboard: React.FC = () => {
       vencimento_mensalidade: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]
     };
 
-    // Salvar Local Primeiro (Garantia de persistência)
-    const currentLocal = JSON.parse(localStorage.getItem('omni_hq_stores') || '[]');
-    localStorage.setItem('omni_hq_stores', JSON.stringify([storeData, ...currentLocal]));
-    
     try {
-      await supabase.from('stores').insert([storeData]);
-    } catch (err) {
-      console.warn("Supabase implementation failed - Saved to LocalStorage");
+      const { error } = await supabase.from('stores').insert([storeData]);
+      if (error) throw error;
+      
+      await fetchStores();
+      setIsModalOpen(false);
+      setNewStore({ nome: '', cnpj: '', admin_email: '', admin_password: '', plan: 'Premium', mensalidade: 499.00 });
+    } catch (err: any) {
+      alert("Erro ao salvar no banco: " + err.message);
+    } finally {
+      setIsDeploying(false);
     }
-
-    await fetchStores();
-    setIsModalOpen(false);
-    setIsDeploying(false);
-    setNewStore({ nome: '', cnpj: '', admin_email: '', admin_password: '', plan: 'Premium', mensalidade: 499.00 });
   };
 
   const totalMRR = stores.reduce((acc, s) => acc + (Number(s.mensalidade) || 0), 0);
@@ -108,58 +118,42 @@ const MasterDashboard: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="px-3 py-1 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-full tracking-widest">HQ Command Center</span>
-            {isOffline && (
-              <span className="flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-black uppercase rounded border border-amber-100">
-                <WifiOff size={12}/> Offline Persistence
-              </span>
-            )}
+            <button onClick={handleClearCache} className="px-3 py-1 bg-slate-200 text-slate-600 text-[9px] font-black uppercase rounded hover:bg-rose-500 hover:text-white transition-all">Limpar Cache Local</button>
           </div>
           <h2 className="text-5xl font-black text-slate-900 tracking-tighter uppercase italic">OmniERP <span className="text-indigo-600">HQ</span></h2>
         </div>
         
-        {hqRole === 'master_admin' && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-3 px-8 py-5 bg-slate-900 text-white rounded-[28px] font-black text-sm shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 uppercase tracking-widest"
-          >
-            <Zap size={20} /> Nova Implementação
+        <div className="flex gap-4">
+          <button onClick={fetchStores} className="p-5 bg-white border border-slate-200 rounded-[24px] text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
+             <RefreshCw size={24} className={loading ? 'animate-spin' : ''} />
           </button>
-        )}
+          {hqRole === 'master_admin' && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-3 px-8 py-5 bg-slate-900 text-white rounded-[28px] font-black text-sm shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 uppercase tracking-widest"
+            >
+              <Zap size={20} /> Nova Implementação
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center"><Globe size={24} /></div>
-            <TrendingUp size={20} className="text-emerald-500" />
-          </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unidades Ativas</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Unidades Ativas</p>
           <p className="text-4xl font-black text-slate-900 tracking-tighter">{stores.filter(s => s.status === 'Ativo').length}</p>
         </div>
-        
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center"><DollarSign size={24} /></div>
-            <Activity size={20} className="text-blue-500" />
-          </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receita Recorrente (MRR)</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Receita Recorrente (MRR)</p>
           <p className="text-4xl font-black text-emerald-600 tracking-tighter">R$ {totalMRR.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
         </div>
-
-        <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl">
-          <div className="w-12 h-12 bg-white/10 text-indigo-400 rounded-2xl flex items-center justify-center mb-6"><ShieldCheck size={24} /></div>
-          <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Time Interno OmniERP</p>
-          <p className="text-2xl font-black mt-1">Gestão Central</p>
+        <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl flex flex-col justify-center">
+          <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Base Conectada</p>
+          <p className="text-2xl font-black mt-1">Supabase Realtime</p>
         </div>
-        
-        <div className="bg-indigo-600 p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group">
-          <div className="relative z-10">
-            <CreditCard size={24} className="mb-6 opacity-60" />
-            <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Inadimplência Global</p>
-            <p className="text-4xl font-black tracking-tighter">
-              {stores.length > 0 ? ((stores.filter(s => s.status === 'Bloqueado').length / stores.length) * 100).toFixed(1) : '0'}%
-            </p>
-          </div>
+        <div className="bg-indigo-600 p-8 rounded-[40px] text-white shadow-2xl">
+          <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Acessos Hoje</p>
+          <p className="text-4xl font-black tracking-tighter">{stores.length + 4}</p>
         </div>
       </div>
 
@@ -176,7 +170,7 @@ const MasterDashboard: React.FC = () => {
         
         <div className="overflow-x-auto">
           {loading ? (
-            <div className="p-20 text-center text-slate-400 font-bold animate-pulse uppercase tracking-widest text-xs">Sincronizando...</div>
+            <div className="p-20 text-center text-slate-400 font-bold animate-pulse uppercase tracking-widest text-xs">Sincronizando com Banco...</div>
           ) : (
             <table className="w-full text-left">
               <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100">
@@ -184,7 +178,7 @@ const MasterDashboard: React.FC = () => {
                   <th className="px-10 py-6">Status</th>
                   <th className="px-10 py-6">Unidade / Cliente</th>
                   <th className="px-10 py-6">Plano / MRR</th>
-                  <th className="px-10 py-6 text-right">Ações do Time Omni</th>
+                  <th className="px-10 py-6 text-right">Ações de Comando HQ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -213,12 +207,20 @@ const MasterDashboard: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-10 py-8 text-right">
-                      <button 
-                        onClick={() => impersonateStore(store.id)}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-slate-900 transition-all active:scale-95"
-                      >
-                         Acessar Painel <ExternalLink size={14} />
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        <button 
+                          onClick={() => impersonateStore(store.id)}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-slate-900 transition-all"
+                        >
+                           Acessar Painel <ExternalLink size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteStore(store.id, store.nome_fantasia)}
+                          className="p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all border border-rose-100"
+                        >
+                           <Trash2 size={18} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
