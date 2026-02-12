@@ -2,28 +2,25 @@
 import { supabase } from './supabaseClient';
 import { StoreUser, UserRole, MasterUser, MasterRole } from '../types';
 
-// In a real scenario, these would be in a "master_users" table in Supabase
-// Fix: Added required email property to each HQ team member to satisfy MasterUser interface
-const HQ_TEAM: MasterUser[] = [
-  { id: 'master-1', name: 'Diretor Omni', username: 'MASTER', role: 'master_admin', email: 'admin@omnierp.hq' },
-  { id: 'master-2', name: 'Suporte Técnico', username: 'SUPORTE', role: 'master_support', email: 'suporte@omnierp.hq' },
-  { id: 'master-3', name: 'Financeiro HQ', username: 'FINANCEIRO', role: 'master_financial', email: 'financeiro@omnierp.hq' },
-];
-
 export const login = async (identifier: string, password: string) => {
   const normalizedId = identifier.trim().toUpperCase();
   
-  // Check HQ Internal Team first
-  const internalMember = HQ_TEAM.find(m => m.username === normalizedId);
-  if (internalMember && password === 'MASTERX95620083') {
+  // Tentar buscar na tabela de Master Users (Equipe HQ)
+  const { data: internalMember, error: masterError } = await supabase
+    .from('master_users')
+    .select('*')
+    .eq('username', normalizedId)
+    .eq('password', password) // Em prod usar hash
+    .single();
+
+  if (internalMember && !masterError) {
     localStorage.setItem('omni_master_session', 'true');
     localStorage.setItem('omni_master_role', internalMember.role);
     localStorage.setItem('omni_master_id', internalMember.id);
-    // Masters don't have a fixed store until they "impersonate" one
     return { ...internalMember, role: 'master' as UserRole };
   }
 
-  // Standard Store User Login
+  // Login Padrão de Usuário de Loja
   const { data, error } = await supabase.auth.signInWithPassword({
     email: identifier,
     password,
@@ -60,8 +57,8 @@ export const logout = async () => {
 export const getSessionUser = async (): Promise<any> => {
   if (isMaster()) {
     const id = localStorage.getItem('omni_master_id');
-    const member = HQ_TEAM.find(m => m.id === id) || HQ_TEAM[0];
-    return { ...member, role: 'master' };
+    const { data } = await supabase.from('master_users').select('*').eq('id', id).single();
+    return { ...data, role: 'master' };
   }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -72,8 +69,6 @@ export const getSessionUser = async (): Promise<any> => {
 
 export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
   if (isMaster()) {
-    // HQ Team sees a "Virtual HQ" entry if they aren't impersonating
-    // Fix: Added missing required Store properties (mensalidade, vencimento_mensalidade, status)
     return [{
       id: 'virtual-hq',
       store_id: 'OMNI_HQ',
@@ -95,7 +90,7 @@ export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
     .from('store_users')
     .select(`
       id, store_id, user_id,
-      stores ( id, nome_fantasia, cnpj, plano_ativo )
+      stores ( id, nome_fantasia, cnpj, plano_ativo, status, mensalidade )
     `)
     .eq('user_id', userId);
   
@@ -112,7 +107,7 @@ export const setActiveStoreId = (storeId: string) => {
 };
 
 export const hasModuleAccess = async (moduleId: string): Promise<boolean> => {
-  if (isMaster()) return true; // Master HQ team has bypass access
+  if (isMaster()) return true; 
   const storeId = getActiveStoreId();
   if (!storeId) return false;
 

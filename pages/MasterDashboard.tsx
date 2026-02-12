@@ -28,15 +28,18 @@ const MasterDashboard: React.FC = () => {
   const fetchStores = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('stores')
-        .select(`*, store_modules (module_id)`)
+        .select(`*`)
         .order('created_at', { ascending: false });
-      if (data) setStores(data as any[]);
+      
+      if (error) throw error;
+      setStores(data || []);
     } catch (e) {
-      console.warn("Using local store buffer.");
+      console.error("Erro ao carregar lojas:", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -50,25 +53,34 @@ const MasterDashboard: React.FC = () => {
   const handleCreateStore = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsDeploying(true);
-    await new Promise(r => setTimeout(r, 1500));
     
-    const storeId = crypto.randomUUID();
-    const createdStore = {
-      id: storeId,
-      nome_fantasia: newStore.nome,
-      cnpj: newStore.cnpj,
-      plano_ativo: newStore.plan,
-      mensalidade: newStore.mensalidade,
-      status: 'Ativo',
-      created_at: new Date().toISOString(),
-    } as any;
+    try {
+      const { data, error } = await supabase
+        .from('stores')
+        .insert([{
+          nome_fantasia: newStore.nome,
+          cnpj: newStore.cnpj,
+          plano_ativo: newStore.plan,
+          mensalidade: newStore.mensalidade,
+          status: 'Ativo',
+          vencimento_mensalidade: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]
+        }])
+        .select()
+        .single();
 
-    setStores(prev => [createdStore, ...prev]);
-    setIsDeploying(false);
-    setIsModalOpen(false);
+      if (error) throw error;
+
+      await fetchStores();
+      setIsModalOpen(false);
+      setNewStore({ nome: '', cnpj: '', admin_email: '', admin_password: '', plan: 'Premium', mensalidade: 499.00 });
+    } catch (err: any) {
+      alert("Erro ao implantar unidade: " + err.message);
+    } finally {
+      setIsDeploying(false);
+    }
   };
 
-  const totalMRR = stores.reduce((acc, s) => acc + (s.mensalidade || 0), 0);
+  const totalMRR = stores.reduce((acc, s) => acc + (Number(s.mensalidade) || 0), 0);
   const hqRole = getMasterRole();
 
   return (
@@ -92,7 +104,6 @@ const MasterDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* HQ Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
           <div className="flex justify-between items-start mb-6">
@@ -100,7 +111,7 @@ const MasterDashboard: React.FC = () => {
             <TrendingUp size={20} className="text-emerald-500" />
           </div>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unidades Ativas</p>
-          <p className="text-4xl font-black text-slate-900 tracking-tighter">{stores.length}</p>
+          <p className="text-4xl font-black text-slate-900 tracking-tighter">{stores.filter(s => s.status === 'Ativo').length}</p>
         </div>
         
         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
@@ -108,8 +119,8 @@ const MasterDashboard: React.FC = () => {
             <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center"><DollarSign size={24} /></div>
             <Activity size={20} className="text-blue-500" />
           </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Faturamento Recorrente (MRR)</p>
-          <p className="text-4xl font-black text-emerald-600 tracking-tighter">R$ {totalMRR.toLocaleString('pt-BR')}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receita Recorrente (MRR)</p>
+          <p className="text-4xl font-black text-emerald-600 tracking-tighter">R$ {totalMRR.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
         </div>
 
         <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-2xl">
@@ -122,13 +133,14 @@ const MasterDashboard: React.FC = () => {
           <div className="relative z-10">
             <CreditCard size={24} className="mb-6 opacity-60" />
             <p className="text-[10px] font-black text-white/50 uppercase tracking-widest">Inadimplência Global</p>
-            <p className="text-4xl font-black tracking-tighter">0.8%</p>
+            <p className="text-4xl font-black tracking-tighter">
+              {stores.length > 0 ? ((stores.filter(s => s.status === 'Bloqueado').length / stores.length) * 100).toFixed(1) : '0'}%
+            </p>
           </div>
           <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform"></div>
         </div>
       </div>
 
-      {/* Control List */}
       <div className="bg-white rounded-[48px] border border-slate-200 shadow-xl overflow-hidden">
         <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
            <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight flex items-center gap-3">
@@ -136,63 +148,66 @@ const MasterDashboard: React.FC = () => {
            </h3>
            <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input type="text" placeholder="Filtrar por CNPJ ou Nome Fantasia..." className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-600 w-96 shadow-sm" />
+              <input type="text" placeholder="Filtrar por unidade..." className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-600 w-96 shadow-sm" />
            </div>
         </div>
         
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100">
-              <tr>
-                <th className="px-10 py-6">Status</th>
-                <th className="px-10 py-6">Unidade / Cliente</th>
-                <th className="px-10 py-6">Plano / MRR</th>
-                <th className="px-10 py-6 text-right">Ações do Time Omni</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {stores.map(store => (
-                <tr key={store.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-10 py-8">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${store.status === 'Ativo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                      {store.status}
-                    </span>
-                  </td>
-                  <td className="px-10 py-8">
-                    <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black">
-                          {store.nome_fantasia.charAt(0)}
-                       </div>
-                       <div>
-                          <p className="font-black text-slate-900 text-lg tracking-tight uppercase">{store.nome_fantasia}</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">CNPJ: {store.cnpj}</p>
-                       </div>
-                    </div>
-                  </td>
-                  <td className="px-10 py-8">
-                    <div>
-                       <p className="text-sm font-black text-slate-700">{store.plano_ativo}</p>
-                       <p className="text-xs font-bold text-slate-400">R$ {store.mensalidade?.toFixed(2)} / mensal</p>
-                    </div>
-                  </td>
-                  <td className="px-10 py-8 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <button 
-                        onClick={() => impersonateStore(store.id)}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-slate-900 transition-all active:scale-95"
-                      >
-                         Acessar Painel <ExternalLink size={14} />
-                      </button>
-                    </div>
-                  </td>
+          {loading ? (
+            <div className="p-20 text-center text-slate-400 font-bold animate-pulse uppercase tracking-widest text-xs">Sincronizando com o Banco de Dados...</div>
+          ) : (
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100">
+                <tr>
+                  <th className="px-10 py-6">Status</th>
+                  <th className="px-10 py-6">Unidade / Cliente</th>
+                  <th className="px-10 py-6">Plano / MRR</th>
+                  <th className="px-10 py-6 text-right">Ações do Time Omni</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {stores.map(store => (
+                  <tr key={store.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-10 py-8">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${store.status === 'Ativo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                        {store.status}
+                      </span>
+                    </td>
+                    <td className="px-10 py-8">
+                      <div className="flex items-center gap-4">
+                         <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black">
+                            {store.nome_fantasia.charAt(0)}
+                         </div>
+                         <div>
+                            <p className="font-black text-slate-900 text-lg tracking-tight uppercase">{store.nome_fantasia}</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">CNPJ: {store.cnpj}</p>
+                         </div>
+                      </div>
+                    </td>
+                    <td className="px-10 py-8">
+                      <div>
+                         <p className="text-sm font-black text-slate-700">{store.plano_ativo}</p>
+                         <p className="text-xs font-bold text-slate-400">R$ {Number(store.mensalidade).toFixed(2)} / mensal</p>
+                      </div>
+                    </td>
+                    <td className="px-10 py-8 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        <button 
+                          onClick={() => impersonateStore(store.id)}
+                          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-slate-900 transition-all active:scale-95"
+                        >
+                           Acessar Painel <ExternalLink size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {/* Deployment Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-2xl rounded-[48px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col">
