@@ -24,6 +24,10 @@ export interface Store {
   cnpj: string;
   plano_ativo: string;
   created_at: string;
+  endereco?: string;
+  mensalidade?: number;
+  vencimento_mensalidade?: string;
+  status?: 'Ativo' | 'Inativo';
   // Fix: Renamed modules to store_modules to match the database schema and queries used in MasterDashboard
   store_modules?: StoreModule[];
 }

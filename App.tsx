@@ -16,6 +16,8 @@ import Users from './pages/Users';
 import Reports from './pages/Reports';
 import IncomingInvoices from './pages/IncomingInvoices';
 import MasterDashboard from './pages/MasterDashboard';
+import GlobalUsers from './pages/GlobalUsers';
+import SaaSSettings from './pages/SaaSSettings';
 
 const App: React.FC = () => {
   return (
@@ -25,7 +27,13 @@ const App: React.FC = () => {
         <Route path="/select-store" element={<Guard><SelectStore /></Guard>} />
         
         <Route path="/" element={<Guard><Layout><Dashboard /></Layout></Guard>} />
+        
+        {/* Rotas Master */}
         <Route path="/master" element={<Guard><Layout><MasterDashboard /></Layout></Guard>} />
+        <Route path="/usuarios-globais" element={<Guard><Layout><GlobalUsers /></Layout></Guard>} />
+        <Route path="/config-sistema" element={<Guard><Layout><SaaSSettings /></Layout></Guard>} />
+
+        {/* Rotas Operacionais */}
         <Route path="/pedidos" element={<Guard><Layout><Orders /></Layout></Guard>} />
         <Route path="/estoque" element={<Guard><Layout><Inventory /></Layout></Guard>} />
         <Route path="/entradas" element={<Guard><Layout><IncomingInvoices /></Layout></Guard>} />
