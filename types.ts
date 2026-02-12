@@ -22,11 +22,11 @@ export interface Store {
   id: string;
   nome_fantasia: string;
   cnpj: string;
-  plano_ativo: string;
-  created_at: string;
+  plano_ativo?: string;
+  created_at?: string;
   endereco?: string;
-  mensalidade: number;
-  vencimento_mensalidade: string;
+  mensalidade?: number;
+  vencimento_mensalidade?: string;
   ultimo_pagamento?: string;
   status: 'Ativo' | 'Bloqueado' | 'Inativo';
   store_modules?: StoreModule[];
@@ -119,8 +119,8 @@ export interface Entity {
   document: string;
   type: EntityType;
   status: string;
-  address: string;
-  sector: Sector;
+  address?: string;
+  sector?: Sector;
   email?: string;
   phone?: string;
   createdAt?: string;
@@ -196,7 +196,6 @@ export interface AuditLog {
   timestamp: string;
 }
 
-// Fix: Added missing IncomingInvoiceItem interface
 export interface IncomingInvoiceItem {
   id: string;
   description: string;
@@ -215,7 +214,6 @@ export interface IncomingInvoiceItem {
   internalProductId?: string;
 }
 
-// Fix: Added missing IncomingInvoice interface
 export interface IncomingInvoice {
   id: string;
   number: string;
