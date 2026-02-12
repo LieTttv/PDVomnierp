@@ -19,6 +19,8 @@ import MasterDashboard from './pages/MasterDashboard';
 import GlobalUsers from './pages/GlobalUsers';
 import SaaSSettings from './pages/SaaSSettings';
 import MasterTeam from './pages/MasterTeam';
+import HQFinancial from './pages/HQFinancial';
+import HQNotices from './pages/HQNotices';
 
 const App: React.FC = () => {
   return (
@@ -33,6 +35,8 @@ const App: React.FC = () => {
         <Route path="/master" element={<Guard><Layout><MasterDashboard /></Layout></Guard>} />
         <Route path="/time-hq" element={<Guard><Layout><MasterTeam /></Layout></Guard>} />
         <Route path="/usuarios-globais" element={<Guard><Layout><GlobalUsers /></Layout></Guard>} />
+        <Route path="/financeiro-hq" element={<Guard><Layout><HQFinancial /></Layout></Guard>} />
+        <Route path="/avisos-hq" element={<Guard><Layout><HQNotices /></Layout></Guard>} />
         <Route path="/config-sistema" element={<Guard><Layout><SaaSSettings /></Layout></Guard>} />
 
         {/* Operational Routes */}

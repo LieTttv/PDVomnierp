@@ -25,9 +25,10 @@ export interface Store {
   plano_ativo: string;
   created_at: string;
   endereco?: string;
-  mensalidade?: number;
-  vencimento_mensalidade?: string;
-  status?: 'Ativo' | 'Inativo';
+  mensalidade: number;
+  vencimento_mensalidade: string;
+  ultimo_pagamento?: string;
+  status: 'Ativo' | 'Bloqueado' | 'Inativo';
   store_modules?: StoreModule[];
 }
 
@@ -42,12 +43,22 @@ export interface MasterUser {
   id: string;
   name: string;
   username: string;
+  password?: string;
   role: MasterRole;
-  email?: string;
+  email: string;
   lastAccess?: string;
 }
 
-// Fix: Exported ProductComponent to satisfy imports in other files
+export interface SystemNotice {
+  id: string;
+  title: string;
+  content: string;
+  type: 'info' | 'warning' | 'critical';
+  targetStoreId: string | 'ALL';
+  createdAt: string;
+  active: boolean;
+}
+
 export interface ProductComponent {
   id: string;
   productId: string;
@@ -60,7 +71,6 @@ export interface ProductComponent {
 export interface Product {
   id: string;
   store_id: string;
-  // Fix: Added missing optional properties to satisfy usage in constants and forms
   tenantId?: string;
   codigo: string;
   ean: string;
@@ -99,14 +109,12 @@ export enum Sector {
   FACTORY = 'Fábrica'
 }
 
-// Fix: Added EntityType and OrderStatus types
 export type EntityType = 'CLIENTE' | 'FORNECEDOR' | 'TRANSPORTADORA' | 'FABRICA';
 export type OrderStatus = 'Pendente' | 'Liberado' | 'Faturado' | 'Cancelado' | 'Sincronizado';
 
 export interface Entity {
   id: string;
   name: string;
-  // Fix: Added missing optional properties for Entity
   tradeName?: string;
   document: string;
   type: EntityType;
@@ -120,7 +128,6 @@ export interface Entity {
   rating?: number;
 }
 
-// Fix: Added OrderItem interface
 export interface OrderItem {
   productId: string;
   productName: string;
@@ -139,7 +146,6 @@ export interface Order {
   status: OrderStatus;
   origin: 'Interno' | 'Externo';
   sellerName?: string;
-  // Fix: Updated items type to OrderItem
   items: OrderItem[];
   sector?: Sector;
 }
@@ -160,34 +166,6 @@ export interface Invoice {
   sector?: Sector;
 }
 
-// Fix: Added IncomingInvoice and IncomingInvoiceItem types
-export interface IncomingInvoiceItem {
-  id: string;
-  description: string;
-  externalCode: string;
-  quantityReceived: number;
-  unitReceived: string;
-  conversionFactor: number;
-  finalQuantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  taxData: { icms: number; ipi: number; st: number };
-  internalProductId?: string;
-}
-
-export interface IncomingInvoice {
-  id?: string;
-  number: string;
-  serie: string;
-  providerName: string;
-  providerId: string;
-  accessKey: string;
-  date: string;
-  total: number;
-  status: string;
-  items: IncomingInvoiceItem[];
-}
-
 export interface UserPermissions {
   [moduleId: string]: {
     access: boolean;
@@ -195,7 +173,6 @@ export interface UserPermissions {
     edit?: boolean;
     delete?: boolean;
     special?: string[];
-    // Fix: Allow extra properties used in permission presets
     [key: string]: any;
   };
 }
@@ -217,4 +194,37 @@ export interface AuditLog {
   action: string;
   module: string;
   timestamp: string;
+}
+
+// Fix: Added missing IncomingInvoiceItem interface
+export interface IncomingInvoiceItem {
+  id: string;
+  description: string;
+  externalCode: string;
+  quantityReceived: number;
+  unitReceived: string;
+  conversionFactor: number;
+  finalQuantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  taxData: {
+    icms: number;
+    ipi: number;
+    st: number;
+  };
+  internalProductId?: string;
+}
+
+// Fix: Added missing IncomingInvoice interface
+export interface IncomingInvoice {
+  id: string;
+  number: string;
+  serie: string;
+  providerName: string;
+  providerId: string;
+  accessKey: string;
+  date: string;
+  total: number;
+  status: 'Pendente' | 'Processada';
+  items: IncomingInvoiceItem[];
 }

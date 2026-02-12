@@ -3,10 +3,11 @@ import { supabase } from './supabaseClient';
 import { StoreUser, UserRole, MasterUser, MasterRole } from '../types';
 
 // In a real scenario, these would be in a "master_users" table in Supabase
+// Fix: Added required email property to each HQ team member to satisfy MasterUser interface
 const HQ_TEAM: MasterUser[] = [
-  { id: 'master-1', name: 'Diretor Omni', username: 'MASTER', role: 'master_admin' },
-  { id: 'master-2', name: 'Suporte Técnico', username: 'SUPORTE', role: 'master_support' },
-  { id: 'master-3', name: 'Financeiro HQ', username: 'FINANCEIRO', role: 'master_financial' },
+  { id: 'master-1', name: 'Diretor Omni', username: 'MASTER', role: 'master_admin', email: 'admin@omnierp.hq' },
+  { id: 'master-2', name: 'Suporte Técnico', username: 'SUPORTE', role: 'master_support', email: 'suporte@omnierp.hq' },
+  { id: 'master-3', name: 'Financeiro HQ', username: 'FINANCEIRO', role: 'master_financial', email: 'financeiro@omnierp.hq' },
 ];
 
 export const login = async (identifier: string, password: string) => {
@@ -72,6 +73,7 @@ export const getSessionUser = async (): Promise<any> => {
 export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
   if (isMaster()) {
     // HQ Team sees a "Virtual HQ" entry if they aren't impersonating
+    // Fix: Added missing required Store properties (mensalidade, vencimento_mensalidade, status)
     return [{
       id: 'virtual-hq',
       store_id: 'OMNI_HQ',
@@ -81,7 +83,10 @@ export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
         nome_fantasia: 'OmniERP Headquarters',
         cnpj: '00.000.000/0000-00',
         plano_ativo: 'PLATFORM_OWNER',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        mensalidade: 0,
+        vencimento_mensalidade: new Date().toISOString(),
+        status: 'Ativo'
       }
     }];
   }
