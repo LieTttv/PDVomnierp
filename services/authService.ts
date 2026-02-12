@@ -7,9 +7,10 @@ const EMERGENCY_MASTER_ID = '00000000-0000-0000-0000-000000000000';
 
 export const login = async (identifier: string, password: string) => {
   const normalizedId = identifier.trim().toUpperCase();
+  const emailLower = identifier.trim().toLowerCase();
   const MASTER_PWD = 'MASTERX95620083';
 
-  // 1. Acesso MASTER de Emergência (Hardcoded)
+  // 1. Acesso MASTER de Emergência
   if (normalizedId === 'MASTER' && password === MASTER_PWD) {
     localStorage.setItem('omni_master_session', 'true');
     localStorage.setItem('omni_master_role', 'master_admin');
@@ -17,33 +18,46 @@ export const login = async (identifier: string, password: string) => {
     return { id: EMERGENCY_MASTER_ID, name: 'Diretor Omni (Local)', role: 'master' };
   }
 
-  // 2. Verificação de Usuários HQ no Banco de Dados Remoto (Acesso Global)
+  // 2. Verificação de Usuários HQ na Nuvem
   try {
-    const { data: internalMember, error: masterError } = await supabase
+    const { data: internalMember } = await supabase
       .from('master_users')
       .select('*')
       .eq('username', normalizedId)
       .eq('password', password)
       .single();
 
-    if (internalMember && !masterError) {
+    if (internalMember) {
       localStorage.setItem('omni_master_session', 'true');
       localStorage.setItem('omni_master_role', internalMember.role);
       localStorage.setItem('omni_master_id', internalMember.id);
       return { ...internalMember, role: 'master' as UserRole };
     }
-  } catch (e) {
-    console.error("Erro na base Master:", e);
-  }
+  } catch (e) {}
 
-  // 3. Login de Usuário de Unidade (Auth Padrão Supabase)
+  // 3. Verificação de Usuários Admin/Unidade via Tabela Profiles (Login Global)
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('email', emailLower)
+      .eq('password', password)
+      .single();
+
+    if (profile) {
+      // Retornamos o perfil para que o Login.tsx possa buscar as lojas vinculadas
+      return profile;
+    }
+  } catch (e) {}
+
+  // 4. Fallback: Login Padrão Supabase Auth
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: identifier.toLowerCase(),
+    email: emailLower,
     password,
   });
   
   if (error) {
-    throw new Error("Credenciais inválidas. Verifique o usuário e senha.");
+    throw new Error("Credenciais inválidas. Verifique seu login e senha na nuvem.");
   }
   
   return data.user;
@@ -60,7 +74,7 @@ export const getMasterRole = (): MasterRole | null => {
 export const impersonateStore = (storeId: string) => {
   if (!isMaster()) return;
   localStorage.setItem('active_store_id', storeId);
-  window.location.href = '#/'; // Vai para a Dashboard da Loja
+  window.location.href = '#/'; 
 };
 
 export const logout = async () => {
@@ -86,10 +100,11 @@ export const getSessionUser = async (): Promise<any> => {
   }
   
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-  return { ...user, ...profile };
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    return { ...user, ...profile };
+  }
+  return null;
 };
 
 export const getActiveStoreId = (): string | null => {

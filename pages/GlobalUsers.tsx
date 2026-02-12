@@ -4,7 +4,6 @@ import {
   Users as UsersIcon, Shield, Search, Mail, 
   Clock, Power, Key, Building2, AlertTriangle,
   Fingerprint, Settings2, Trash2, ShieldAlert, X, Save, ExternalLink, RefreshCw, Zap, UserPlus, Package, Lock,
-  // Fix: Added missing DollarSign import
   DollarSign
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
@@ -17,7 +16,6 @@ const GlobalUsers: React.FC = () => {
   const [globalAdmins, setGlobalAdmins] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
 
-  // Estado do Formulário de Implantação
   const [deployForm, setDeployForm] = useState({
     store_name: '',
     store_cnpj: '',
@@ -45,7 +43,7 @@ const GlobalUsers: React.FC = () => {
 
       const formatted = (data || []).map(p => ({
         id: p.id,
-        name: p.name,
+        name: p.name || 'Sem Nome',
         email: p.email,
         storeId: p.store_users?.[0]?.stores?.id,
         store: p.store_users?.[0]?.stores?.nome_fantasia || 'Sem Vínculo',
@@ -56,7 +54,6 @@ const GlobalUsers: React.FC = () => {
 
       setGlobalAdmins(formatted);
 
-      // Busca planos disponíveis
       const { data: plansData } = await supabase.from('system_plans').select('*');
       setPlans(plansData || []);
     } catch (e) {
@@ -88,12 +85,11 @@ const GlobalUsers: React.FC = () => {
       
       if (storeErr) throw storeErr;
 
-      // 2. Criar o Perfil do Admin (Simulado via Profiles, ideal usar Auth Admin em prod)
+      // 2. Criar o Perfil do Admin (Usando as colunas garantidas pelo SQL)
       const { data: profile, error: profileErr } = await supabase.from('profiles').insert([{
         name: deployForm.admin_name,
-        email: deployForm.admin_email,
+        email: deployForm.admin_email.toLowerCase(),
         role: 'admin',
-        // No MVP, salvamos a senha no profile para o authService ler. Em PROD usar Auth do Supabase.
         password: deployForm.admin_password 
       }]).select().single();
 
@@ -105,7 +101,7 @@ const GlobalUsers: React.FC = () => {
         store_id: store.id
       }]);
 
-      alert("Implantação Concluída! Loja e Administrador criados com sucesso.");
+      alert("Implantação Concluída! Unidade e Administrador sincronizados na nuvem.");
       setIsDeployModalOpen(false);
       fetchClients();
     } catch (err: any) {
@@ -123,7 +119,7 @@ const GlobalUsers: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Painel de <span className="text-indigo-600">Clientes</span></h2>
-          <p className="text-slate-500 font-bold text-sm">Gestão de unidades licenciadas e administradores.</p>
+          <p className="text-slate-500 font-bold text-sm">Gestão de licenças e acessos administrativos.</p>
         </div>
         <div className="flex gap-3">
           <button onClick={fetchClients} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
@@ -133,7 +129,7 @@ const GlobalUsers: React.FC = () => {
             onClick={() => setIsDeployModalOpen(true)}
             className="flex items-center gap-3 px-8 py-5 bg-slate-900 text-white rounded-[28px] font-black text-sm shadow-2xl hover:bg-indigo-600 transition-all uppercase tracking-widest"
           >
-            <Zap size={20} /> Implantar Nova Unidade
+            <Zap size={20} /> Implantar Unidade
           </button>
         </div>
       </div>
@@ -175,7 +171,7 @@ const GlobalUsers: React.FC = () => {
                       <Mail size={14} className="text-slate-300" /> {admin.email}
                    </div>
                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                      <Clock size={14} className="text-slate-300" /> Visto em: {admin.lastLogin}
+                      <Clock size={14} className="text-slate-300" /> Sincronizado: {admin.lastLogin}
                    </div>
                 </div>
              </div>
@@ -185,27 +181,25 @@ const GlobalUsers: React.FC = () => {
                   onClick={() => impersonateStore(admin.storeId)}
                   className="w-full py-4 bg-slate-100 text-slate-600 text-[10px] font-black uppercase rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
                 >
-                   Acessar Unidade <ExternalLink size={14}/>
+                   Entrar na Unidade <ExternalLink size={14}/>
                 </button>
              </div>
           </div>
         ))}
       </div>
 
-      {/* MODAL DE IMPLANTAÇÃO (LOJA + ADMIN) */}
       {isDeployModalOpen && (
         <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
            <div className="bg-white w-full max-w-4xl rounded-[48px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
               <div className="p-10 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                 <h3 className="text-3xl font-black text-slate-900 uppercase italic">Implantar Licença</h3>
+                 <h3 className="text-3xl font-black text-slate-900 uppercase italic">Implantar Nova Licença</h3>
                  <button onClick={() => setIsDeployModalOpen(false)}><X size={32}/></button>
               </div>
               
               <div className="flex-1 overflow-y-auto p-10 space-y-10 scrollbar-hide">
-                 {/* Seção 1: Dados da Unidade */}
                  <div className="space-y-6">
                     <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
-                       <Building2 size={16} /> 1. Dados da Unidade (Licença)
+                       <Building2 size={16} /> 1. Dados da Unidade
                     </h4>
                     <div className="grid grid-cols-2 gap-6">
                        <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="RAZÃO SOCIAL / FANTASIA" value={deployForm.store_name} onChange={e => setDeployForm({...deployForm, store_name: e.target.value})} />
@@ -219,27 +213,26 @@ const GlobalUsers: React.FC = () => {
                        <div className="flex items-center gap-4 bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
                           <DollarSign className="text-indigo-600" />
                           <div>
-                             <p className="text-[9px] font-black text-indigo-400 uppercase">Mensalidade</p>
+                             <p className="text-[9px] font-black text-indigo-400 uppercase">Valor Contratado</p>
                              <p className="text-xl font-black text-indigo-900">R$ {deployForm.store_price.toFixed(2)}</p>
                           </div>
                        </div>
                     </div>
                  </div>
 
-                 {/* Seção 2: Dados do Administrador */}
                  <div className="space-y-6">
                     <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2">
-                       <UserPlus size={16} /> 2. Administrador da Unidade
+                       <UserPlus size={16} /> 2. Administrador Responsável
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                        <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="NOME DO ADMIN" value={deployForm.admin_name} onChange={e => setDeployForm({...deployForm, admin_name: e.target.value})} />
                        <div className="relative">
                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                          <input className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="E-MAIL DE LOGIN" value={deployForm.admin_email} onChange={e => setDeployForm({...deployForm, admin_email: e.target.value})} />
+                          <input className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="E-MAIL (LOGIN)" value={deployForm.admin_email} onChange={e => setDeployForm({...deployForm, admin_email: e.target.value})} />
                        </div>
                        <div className="relative">
                           <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                          <input type="password" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="SENHA INICIAL" value={deployForm.admin_password} onChange={e => setDeployForm({...deployForm, admin_password: e.target.value})} />
+                          <input type="password" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="SENHA" value={deployForm.admin_password} onChange={e => setDeployForm({...deployForm, admin_password: e.target.value})} />
                        </div>
                     </div>
                  </div>
