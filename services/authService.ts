@@ -4,33 +4,17 @@ import { StoreUser, UserRole, MasterUser, MasterRole } from '../types';
 
 export const login = async (identifier: string, password: string) => {
   const normalizedId = identifier.trim().toUpperCase();
-  const MASTER_PWD = 'MASTERX95620083'; // Sua chave mestra configurada
+  const MASTER_PWD = 'MASTERX95620083';
 
-  // 1. Fallback Imediato para Usuário MASTER (Evita erro de API Key no primeiro acesso)
+  // 1. Acesso MASTER de Emergência
   if (normalizedId === 'MASTER' && password === MASTER_PWD) {
-    const defaultMaster = {
-      id: 'master-hq-id',
-      name: 'Diretor Omni',
-      username: 'MASTER',
-      role: 'master_admin',
-      email: 'admin@omnierp.hq'
-    };
-    
     localStorage.setItem('omni_master_session', 'true');
-    localStorage.setItem('omni_master_role', defaultMaster.role);
-    localStorage.setItem('omni_master_id', defaultMaster.id);
-    
-    // Tenta salvar/atualizar no banco silenciosamente se a conexão estiver ativa
-    try {
-      await supabase.from('master_users').upsert([defaultMaster]);
-    } catch (e) {
-      console.warn("Database sync skipped: Using local master session.");
-    }
-    
-    return { ...defaultMaster, role: 'master' as UserRole };
+    localStorage.setItem('omni_master_role', 'master_admin');
+    localStorage.setItem('omni_master_id', 'master-hq-id');
+    return { id: 'master-hq-id', name: 'Diretor Omni', role: 'master' };
   }
 
-  // 2. Tentar buscar outros membros da equipe HQ no banco
+  // 2. Verificação de Usuários HQ no Banco de Dados Remoto
   try {
     const { data: internalMember, error: masterError } = await supabase
       .from('master_users')
@@ -46,20 +30,18 @@ export const login = async (identifier: string, password: string) => {
       return { ...internalMember, role: 'master' as UserRole };
     }
   } catch (e) {
-    console.error("Master DB check failed", e);
+    console.error("Erro ao verificar base Master:", e);
   }
 
-  // 3. Login Padrão de Usuário de Loja (Auth do Supabase)
+  // 3. Login de Usuário de Unidade (Auth do Supabase)
+  // Nota: Para usuários de loja, o e-mail deve estar cadastrado no Supabase Auth
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: identifier,
+    email: identifier.toLowerCase(),
     password,
   });
   
   if (error) {
-    if (error.message.includes("API key")) {
-      throw new Error("Configuração de API pendente. Use o acesso MASTER para configurar.");
-    }
-    throw error;
+    throw new Error("Credenciais inválidas ou usuário não encontrado na nuvem.");
   }
   
   return data.user;
@@ -83,10 +65,7 @@ export const logout = async () => {
   if (!isMaster()) {
     await supabase.auth.signOut();
   }
-  localStorage.removeItem('active_store_id');
-  localStorage.removeItem('omni_master_session');
-  localStorage.removeItem('omni_master_role');
-  localStorage.removeItem('omni_master_id');
+  localStorage.clear(); // Limpa tudo para evitar sessões fantasmas
   window.location.href = '#/login';
 };
 
@@ -97,7 +76,7 @@ export const getSessionUser = async (): Promise<any> => {
       const { data } = await supabase.from('master_users').select('*').eq('id', id).single();
       if (data) return { ...data, role: 'master' };
     } catch (e) {}
-    return { name: 'Diretor Omni', role: 'master' };
+    return { name: 'Membro HQ', role: 'master' };
   }
   
   const { data: { user } } = await supabase.auth.getUser();
@@ -110,32 +89,19 @@ export const getSessionUser = async (): Promise<any> => {
 export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
   if (isMaster()) {
     return [{
-      id: 'virtual-hq',
+      id: 'hq',
       store_id: 'OMNI_HQ',
       user_id: userId,
-      stores: {
-        id: 'OMNI_HQ',
-        nome_fantasia: 'OmniERP Headquarters',
-        cnpj: '00.000.000/0000-00',
-        plano_ativo: 'PLATFORM_OWNER',
-        created_at: new Date().toISOString(),
-        mensalidade: 0,
-        vencimento_mensalidade: new Date().toISOString(),
-        status: 'Ativo'
-      }
+      stores: { id: 'OMNI_HQ', nome_fantasia: 'Omni HQ Global', cnpj: '00.000.000/0000-00', status: 'Ativo' }
     }];
   }
 
   const { data, error } = await supabase
     .from('store_users')
-    .select(`
-      id, store_id, user_id,
-      stores ( id, nome_fantasia, cnpj, plano_ativo, status, mensalidade, vencimento_mensalidade )
-    `)
+    .select(`id, store_id, user_id, stores (*)`)
     .eq('user_id', userId);
   
-  if (error) return [];
-  return data as any[];
+  return (data as any[]) || [];
 };
 
 export const getActiveStoreId = (): string | null => {
