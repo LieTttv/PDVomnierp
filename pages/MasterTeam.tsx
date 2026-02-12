@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, UserPlus, Key, Power, Mail, ShieldAlert, Trash2, Fingerprint, X, Save, Edit3, Shield, RefreshCw, WifiOff } from 'lucide-react';
+import { ShieldCheck, UserPlus, Key, Power, Mail, ShieldAlert, Trash2, Fingerprint, X, Save, Edit3, Shield, RefreshCw } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { MasterUser, MasterRole } from '../types';
 
@@ -57,22 +57,35 @@ const MasterTeam: React.FC = () => {
     }
 
     try {
+      // Limpar o objeto para garantir que NÃO enviamos o campo ID em novos registros
+      const payload: any = {
+        name: formData.name,
+        username: formData.username?.toUpperCase().trim(),
+        password: formData.password,
+        email: formData.email,
+        role: formData.role
+      };
+
       if (editingMember) {
-        const { error } = await supabase.from('master_users').update(formData).eq('id', editingMember.id);
+        const { error } = await supabase
+          .from('master_users')
+          .update(payload)
+          .eq('id', editingMember.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('master_users').insert([{
-          ...formData,
-          id: Math.random().toString(36).substr(2, 9)
-        }]);
+        // IMPORTANTE: Deixa o Supabase gerar o UUID
+        const { error } = await supabase
+          .from('master_users')
+          .insert([payload]);
         if (error) throw error;
       }
       
-      alert("Membro do time salvo na nuvem com sucesso!");
+      alert("Usuário salvo com sucesso no banco de dados global!");
       await fetchTeam();
       setIsModalOpen(false);
     } catch (err: any) {
-      alert("Erro ao salvar no banco de dados: " + err.message);
+      console.error("Erro ao salvar:", err);
+      alert("Erro no Banco de Dados: " + err.message);
     }
   };
 
@@ -100,7 +113,7 @@ const MasterTeam: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Time <span className="text-indigo-600">Omni HQ</span></h2>
-          <p className="text-slate-500 font-bold text-sm">Acessos globais sincronizados na nuvem.</p>
+          <p className="text-slate-500 font-bold text-sm">Controle de acessos globais para o time Omni.</p>
         </div>
         <div className="flex gap-4">
           <button onClick={fetchTeam} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 transition-all">
@@ -116,8 +129,14 @@ const MasterTeam: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {team.length === 0 && !loading && (
+          <div className="col-span-full p-20 text-center bg-white rounded-[48px] border border-dashed border-slate-300">
+             <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Nenhum membro registrado na nuvem.</p>
+          </div>
+        )}
+        
         {team.map(member => (
-          <div key={member.id} className="bg-white p-10 rounded-[48px] border border-slate-200 shadow-xl hover:shadow-2xl transition-all group">
+          <div key={member.id} className="bg-white p-10 rounded-[48px] border border-slate-200 shadow-xl hover:shadow-2xl transition-all">
             <div className="flex justify-between items-start mb-8">
                 <div className="w-16 h-16 bg-slate-900 text-white rounded-[24px] flex items-center justify-center text-2xl font-black">
                   {member.name.charAt(0)}
@@ -134,8 +153,12 @@ const MasterTeam: React.FC = () => {
                   <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase rounded-lg border border-indigo-100 w-fit">
                       {getRoleLabel(member.role)}
                   </span>
-                  <p className="text-xs font-bold text-slate-400 flex items-center gap-1 mt-2"><Fingerprint size={12}/> Login: {member.username}</p>
-                  <p className="text-xs font-bold text-slate-400 flex items-center gap-1"><Mail size={12}/> {member.email}</p>
+                  <p className="text-xs font-bold text-slate-400 flex items-center gap-1 mt-2">
+                    <Fingerprint size={12} className="text-indigo-400" /> Login: <strong>{member.username}</strong>
+                  </p>
+                  <p className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                    <Mail size={12} className="text-indigo-400" /> {member.email}
+                  </p>
                 </div>
             </div>
           </div>
@@ -146,24 +169,43 @@ const MasterTeam: React.FC = () => {
          <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-lg rounded-[48px] shadow-2xl p-10 animate-in zoom-in-95">
                <div className="flex justify-between items-center mb-10">
-                  <h3 className="text-2xl font-black text-slate-900 uppercase">{editingMember ? 'Editar Acesso' : 'Novo Acesso Global'}</h3>
+                  <h3 className="text-2xl font-black text-slate-900 uppercase">{editingMember ? 'Editar Acesso' : 'Novo Membro HQ'}</h3>
                   <button onClick={() => setIsModalOpen(false)}><X size={32} /></button>
                </div>
                
                <div className="space-y-6">
-                  <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="Nome" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="Usuário" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value.toUpperCase()})} />
-                    <input type="password" placeholder="Senha" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Nome Completo</label>
+                    <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="Ex: Beto" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                   </div>
-                  <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="E-mail" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                  <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as MasterRole})}>
-                    <option value="master_support">Suporte</option>
-                    <option value="master_financial">Financeiro</option>
-                    <option value="master_admin">Administrador Master</option>
-                  </select>
-                  <button onClick={handleSave} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase flex items-center justify-center gap-3">
-                     <Save size={20} /> Salvar na Nuvem
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Username (Login)</label>
+                      <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase" placeholder="BETO" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Senha</label>
+                      <input type="password" placeholder="***" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">E-mail</label>
+                    <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" placeholder="beto@gmail.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Cargo</label>
+                    <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as MasterRole})}>
+                      <option value="master_admin">Administrador Master</option>
+                      <option value="master_support">Analista de Suporte</option>
+                      <option value="master_financial">Gestor Financeiro</option>
+                    </select>
+                  </div>
+
+                  <button onClick={handleSave} className="w-full py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase flex items-center justify-center gap-3 shadow-2xl hover:bg-indigo-600 transition-all">
+                     <Save size={20} /> Salvar Globalmente
                   </button>
                </div>
             </div>

@@ -2,21 +2,22 @@
 import { supabase } from './supabaseClient';
 import { StoreUser, UserRole, MasterUser, MasterRole } from '../types';
 
+// UUID fixo para o acesso de emergência (formato válido)
+const EMERGENCY_MASTER_ID = '00000000-0000-0000-0000-000000000000';
+
 export const login = async (identifier: string, password: string) => {
   const normalizedId = identifier.trim().toUpperCase();
   const MASTER_PWD = 'MASTERX95620083';
-  // UUID de emergência válido para evitar erro de sintaxe
-  const EMERGENCY_MASTER_ID = '00000000-0000-0000-0000-000000000000';
 
-  // 1. Acesso MASTER de Emergência
+  // 1. Acesso MASTER de Emergência (Hardcoded)
   if (normalizedId === 'MASTER' && password === MASTER_PWD) {
     localStorage.setItem('omni_master_session', 'true');
     localStorage.setItem('omni_master_role', 'master_admin');
     localStorage.setItem('omni_master_id', EMERGENCY_MASTER_ID);
-    return { id: EMERGENCY_MASTER_ID, name: 'Diretor Omni', role: 'master' };
+    return { id: EMERGENCY_MASTER_ID, name: 'Diretor Omni (Local)', role: 'master' };
   }
 
-  // 2. Verificação de Usuários HQ no Banco de Dados Remoto
+  // 2. Verificação de Usuários HQ no Banco de Dados Remoto (Acesso Global)
   try {
     const { data: internalMember, error: masterError } = await supabase
       .from('master_users')
@@ -32,17 +33,17 @@ export const login = async (identifier: string, password: string) => {
       return { ...internalMember, role: 'master' as UserRole };
     }
   } catch (e) {
-    console.error("Erro ao verificar base Master:", e);
+    console.error("Erro na base Master:", e);
   }
 
-  // 3. Login de Usuário de Unidade (Auth do Supabase)
+  // 3. Login de Usuário de Unidade (Auth Padrão Supabase)
   const { data, error } = await supabase.auth.signInWithPassword({
     email: identifier.toLowerCase(),
     password,
   });
   
   if (error) {
-    throw new Error("Credenciais inválidas ou usuário não encontrado na nuvem.");
+    throw new Error("Credenciais inválidas. Verifique o usuário e senha.");
   }
   
   return data.user;
@@ -59,7 +60,7 @@ export const getMasterRole = (): MasterRole | null => {
 export const impersonateStore = (storeId: string) => {
   if (!isMaster()) return;
   localStorage.setItem('active_store_id', storeId);
-  window.location.href = '#/';
+  window.location.href = '#/'; // Vai para a Dashboard da Loja
 };
 
 export const logout = async () => {
@@ -73,8 +74,7 @@ export const logout = async () => {
 export const getSessionUser = async (): Promise<any> => {
   if (isMaster()) {
     const id = localStorage.getItem('omni_master_id');
-    // Se o ID for o de emergência, não precisamos consultar o banco
-    if (id === '00000000-0000-0000-0000-000000000000') {
+    if (id === EMERGENCY_MASTER_ID) {
       return { name: 'Diretor Omni (Emergência)', role: 'master' };
     }
     
@@ -92,30 +92,30 @@ export const getSessionUser = async (): Promise<any> => {
   return { ...user, ...profile };
 };
 
-export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
-  if (isMaster()) {
-    return [{
-      id: 'hq',
-      store_id: 'OMNI_HQ',
-      user_id: userId,
-      stores: { id: 'OMNI_HQ', nome_fantasia: 'Omni HQ Global', cnpj: '00.000.000/0000-00', status: 'Ativo' }
-    }];
-  }
-
-  const { data, error } = await supabase
-    .from('store_users')
-    .select(`id, store_id, user_id, stores (*)`)
-    .eq('user_id', userId);
-  
-  return (data as any[]) || [];
-};
-
 export const getActiveStoreId = (): string | null => {
   return localStorage.getItem('active_store_id');
 };
 
 export const setActiveStoreId = (storeId: string) => {
   localStorage.setItem('active_store_id', storeId);
+};
+
+export const getUserStores = async (userId: string): Promise<StoreUser[]> => {
+  if (isMaster()) {
+    return [{
+      id: 'hq-link',
+      store_id: 'OMNI_HQ',
+      user_id: userId,
+      stores: { id: 'OMNI_HQ', nome_fantasia: 'Omni HQ Global', cnpj: '00.000.000/0000-00', status: 'Ativo' }
+    }];
+  }
+
+  const { data } = await supabase
+    .from('store_users')
+    .select(`id, store_id, user_id, stores (*)`)
+    .eq('user_id', userId);
+  
+  return (data as any[]) || [];
 };
 
 export const hasModuleAccess = async (moduleId: string): Promise<boolean> => {
